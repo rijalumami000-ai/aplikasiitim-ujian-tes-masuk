@@ -25,85 +25,7 @@ class _LoginScreenState extends State<LoginScreen> {
     super.dispose();
   }
 
-  // Dialog untuk mengubah Base URL Server (VPS)
-  void _showServerSettings(BuildContext context, ApiService apiService) {
-    final controller = TextEditingController(text: apiService.baseUrl);
 
-    showModalBottomSheet(
-      context: context,
-      isScrollControlled: true,
-      backgroundColor: PremiumColors.bgDarkSecondary,
-      shape: const RoundedRectangleBorder(
-        borderRadius: BorderRadius.vertical(top: Radius.circular(28)),
-      ),
-      builder: (context) {
-        return Padding(
-          padding: EdgeInsets.only(
-            bottom: MediaQuery.of(context).viewInsets.bottom + 24,
-            left: 24,
-            right: 24,
-            top: 24,
-          ),
-          child: Column(
-            mainAxisSize: MainAxisSize.min,
-            crossAxisAlignment: CrossAxisAlignment.start,
-            children: [
-              Row(
-                mainAxisAlignment: MainAxisAlignment.spaceBetween,
-                children: [
-                  const Text(
-                    'Pengaturan Server VPS',
-                    style: TextStyle(
-                      fontSize: 18,
-                      fontWeight: FontWeight.bold,
-                      color: PremiumColors.textMain,
-                    ),
-                  ),
-                  IconButton(
-                    onPressed: () => Navigator.pop(context),
-                    icon: const Icon(Icons.close, color: PremiumColors.textMuted),
-                  )
-                ],
-              ),
-              const SizedBox(height: 8),
-              const Text(
-                'Masukkan alamat IP/Domain server Node.js REST API Anda.',
-                style: TextStyle(color: PremiumColors.textMuted, fontSize: 13),
-              ),
-              const SizedBox(height: 20),
-              TextField(
-                controller: controller,
-                decoration: const InputDecoration(
-                  labelText: 'URL Server Backend',
-                  hintText: 'http://192.168.1.100:3000',
-                  prefixIcon: Icon(Icons.dns, color: PremiumColors.primaryLight),
-                ),
-                keyboardType: TextInputType.url,
-              ),
-              const SizedBox(height: 24),
-              PremiumButton(
-                label: 'Simpan Konfigurasi',
-                onPressed: () async {
-                  if (controller.text.isNotEmpty) {
-                    await apiService.setBaseUrl(controller.text);
-                    if (mounted) {
-                      Navigator.pop(context);
-                      ScaffoldMessenger.of(context).showSnackBar(
-                        SnackBar(
-                          content: Text('Server dialihkan ke: ${controller.text}'),
-                          backgroundColor: PremiumColors.accent,
-                        ),
-                      );
-                    }
-                  }
-                },
-              ),
-            ],
-          ),
-        );
-      },
-    );
-  }
 
   // Proses Submit Login
   void _submitLogin() async {
@@ -143,14 +65,7 @@ class _LoginScreenState extends State<LoginScreen> {
                   child: Column(
                     mainAxisAlignment: MainAxisAlignment.center,
                     children: [
-                      // Tombol Konfigurasi Server (Top Right)
-                      Align(
-                        alignment: Alignment.topRight,
-                        child: IconButton(
-                          icon: const Icon(Icons.settings, color: PremiumColors.textMuted, size: 28),
-                          onPressed: () => _showServerSettings(context, apiService),
-                        ),
-                      ),
+                      const SizedBox(height: 32),
                       const Spacer(),
 
                       // Logo & Judul Aplikasi
@@ -169,7 +84,7 @@ class _LoginScreenState extends State<LoginScreen> {
                       ),
                       const SizedBox(height: 24),
                       const Text(
-                        'Ujian Tes Masuk',
+                        'Panitia Tes Masuk',
                         style: TextStyle(
                           fontSize: 28,
                           fontWeight: FontWeight.bold,
@@ -290,15 +205,7 @@ class _LoginScreenState extends State<LoginScreen> {
                       ),
                       const Spacer(),
 
-                      // Footer
-                      Text(
-                        'Koneksi Aktif: ${apiService.baseUrl.replaceFirst('http://', '').replaceFirst('https://', '')}',
-                        style: const TextStyle(
-                          color: PremiumColors.textMutedLight,
-                          fontSize: 12,
-                        ),
-                      ),
-                      const SizedBox(height: 16),
+
                     ],
                   ),
                 ),

@@ -43,7 +43,7 @@ class MyApp extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     return MaterialApp(
-      title: 'Portal Tes Masuk Pondok Al-Hamid',
+      title: 'Panitia Tes Masuk',
       debugShowCheckedModeBanner: false,
       theme: PremiumTheme.darkTheme,
       home: const AuthWrapper(),
@@ -104,7 +104,7 @@ class _AuthWrapperState extends State<AuthWrapper> {
                 ),
                 const SizedBox(height: 32),
                 const Text(
-                  'Portal Tes Masuk Al-Hamid',
+                  'Panitia Tes Masuk',
                   style: TextStyle(
                     fontSize: 20, 
                     fontWeight: FontWeight.bold, 

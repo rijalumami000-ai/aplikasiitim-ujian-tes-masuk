@@ -3,17 +3,16 @@ import 'package:http/http.dart' as http;
 import 'package:shared_preferences/shared_preferences.dart';
 
 class ApiService {
-  static const String _defaultUrl = 'http://localhost:3000';
-  static const String _urlKey = 'backend_base_url';
+  static const String _defaultUrl = 'http://103.67.78.23:3000';
   static const String _tokenKey = 'auth_token';
 
   String _baseUrl = _defaultUrl;
   String? _token;
 
-  // Inisialisasi API Service (Muat dari SharedPreferences)
+  // Inisialisasi API Service (Selalu gunakan IP VPS)
   Future<void> init() async {
     final prefs = await SharedPreferences.getInstance();
-    _baseUrl = prefs.getString(_urlKey) ?? _defaultUrl;
+    _baseUrl = _defaultUrl;
     _token = prefs.getString(_tokenKey);
   }
 
