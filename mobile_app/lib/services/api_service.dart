@@ -5,6 +5,7 @@ import 'package:shared_preferences/shared_preferences.dart';
 class ApiService {
   static const String _defaultUrl = 'http://103.67.78.23:3000';
   static const String _tokenKey = 'auth_token';
+  static const String _urlKey = 'backend_base_url';
 
   String _baseUrl = _defaultUrl;
   String? _token;
