@@ -170,7 +170,7 @@ class _AdminDashboardState extends State<AdminDashboard> with SingleTickerProvid
           child: PremiumButton(
             label: 'Buat Akun Penguji Baru',
             icon: Icons.person_add_alt,
-            onPressed: () => _showUserForm(context, dataProvider),
+            onPressed: () => _showUserForm(context, dataProvider, null),
           ),
         ),
         Expanded(
@@ -222,29 +222,30 @@ class _AdminDashboardState extends State<AdminDashboard> with SingleTickerProvid
                                   ],
                                 ),
                                 const SizedBox(height: 6),
-                                // Menampilkan daftar kelompok yang ditugaskan
                                 if (role == 'SUPER_USER')
                                   const Text('Semua Kelompok (Super User)', style: TextStyle(color: PremiumColors.textMutedLight, fontSize: 12))
                                 else
                                   Text(
                                     assigned.isEmpty
-                                        ? 'Kelompok ditugaskan: Belum ada'
-                                        : 'Kelompok ditugaskan: ${assigned.map((g) => g['name']).join(', ')}',
+                                        ? 'Kelompok: Belum ditentukan'
+                                        : 'Kelompok: ${assigned.map((g) => g['name']).join(', ')}',
                                     style: const TextStyle(color: PremiumColors.textMuted, fontSize: 12),
                                   ),
                               ],
                             ),
                           ),
-                          if (role != 'SUPER_USER')
-                            ElevatedButton.icon(
-                              onPressed: () => _showAssignGroupsDialog(context, dataProvider, user['id'], username, assigned),
-                              icon: const Icon(Icons.link_outlined, size: 16),
-                              label: const Text('Tugaskan', style: TextStyle(fontSize: 12)),
-                              style: ElevatedButton.styleFrom(
-                                backgroundColor: PremiumColors.primary.withOpacity(0.6),
-                                shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(10)),
+                          Row(
+                            children: [
+                              IconButton(
+                                icon: const Icon(Icons.edit_outlined, color: Colors.blueAccent, size: 20),
+                                onPressed: () => _showUserForm(context, dataProvider, user),
                               ),
-                            )
+                              IconButton(
+                                icon: const Icon(Icons.delete_outline, color: Colors.redAccent, size: 20),
+                                onPressed: () => _confirmDeleteUser(context, dataProvider, user['id'], username),
+                              ),
+                            ],
+                          )
                         ],
                       ),
                     );
@@ -257,83 +258,178 @@ class _AdminDashboardState extends State<AdminDashboard> with SingleTickerProvid
 
   // --- TAB 3: SANTRI (EXAMINEES) ---
   Widget _buildExamineesTab(DataProvider dataProvider) {
-    return Column(
-      children: [
-        Padding(
-          padding: const EdgeInsets.all(16.0),
-          child: PremiumButton(
-            label: 'Tambah Calon Santri',
-            icon: Icons.person_add_outlined,
-            onPressed: () => _showExamineeForm(context, dataProvider, null),
+    if (dataProvider.groups.isEmpty) {
+      return const Center(
+        child: Padding(
+          padding: EdgeInsets.all(24.0),
+          child: Text(
+            'Harap tambahkan kelompok terlebih dahulu di tab Kelompok.',
+            style: TextStyle(color: PremiumColors.textMuted, fontSize: 14),
+            textAlign: TextAlign.center,
           ),
         ),
-        Expanded(
-          child: dataProvider.examinees.isEmpty
-              ? const Center(child: Text('Belum ada calon santri.', style: TextStyle(color: PremiumColors.textMuted)))
-              : ListView.builder(
-                  padding: const EdgeInsets.symmetric(horizontal: 16),
-                  itemCount: dataProvider.examinees.length,
-                  itemBuilder: (context, index) {
-                    final examinee = dataProvider.examinees[index];
-                    final String name = examinee['name'];
-                    final String regNum = examinee['registration_number'];
-                    final String? groupName = examinee['group_name'];
-                    final String? placement = examinee['placement'];
+      );
+    }
 
-                    return GlassCard(
-                      padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 12),
-                      child: Row(
-                        mainAxisAlignment: MainAxisAlignment.spaceBetween,
-                        children: [
-                          Expanded(
-                            child: Column(
-                              crossAxisAlignment: CrossAxisAlignment.start,
-                              children: [
-                                Text(
-                                  name,
-                                  style: const TextStyle(fontWeight: FontWeight.bold, fontSize: 16),
-                                ),
-                                const SizedBox(height: 4),
-                                Text(
-                                  'No. Daftar: $regNum | Kelompok: ${groupName ?? "Belum Masuk"}',
-                                  style: const TextStyle(color: PremiumColors.textMuted, fontSize: 12),
-                                ),
-                                if (placement != null) ...[
-                                  const SizedBox(height: 6),
+    // Map students by group_id for faster lookup
+    final Map<int?, List<dynamic>> groupedExaminees = {};
+    for (var examinee in dataProvider.examinees) {
+      final int? gId = examinee['group_id'];
+      groupedExaminees.putIfAbsent(gId, () => []).add(examinee);
+    }
+
+    return ListView.builder(
+      padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 16),
+      itemCount: dataProvider.groups.length,
+      itemBuilder: (context, groupIndex) {
+        final group = dataProvider.groups[groupIndex];
+        final int groupId = group['id'];
+        final String groupName = group['group_name'];
+        final groupStudents = groupedExaminees[groupId] ?? [];
+
+        return Column(
+          crossAxisAlignment: CrossAxisAlignment.start,
+          children: [
+            // Header Kelompok & Tombol Tambah
+            Row(
+              mainAxisAlignment: MainAxisAlignment.spaceBetween,
+              children: [
+                Row(
+                  children: [
+                    const Icon(Icons.folder_shared_outlined, color: PremiumColors.primaryLight, size: 20),
+                    const SizedBox(width: 8),
+                    Text(
+                      groupName,
+                      style: const TextStyle(fontWeight: FontWeight.bold, fontSize: 16, color: PremiumColors.textMain),
+                    ),
+                    const SizedBox(width: 8),
+                    Container(
+                      padding: const EdgeInsets.symmetric(horizontal: 6, vertical: 2),
+                      decoration: BoxDecoration(
+                        color: PremiumColors.primary.withOpacity(0.15),
+                        borderRadius: BorderRadius.circular(6),
+                      ),
+                      child: Text(
+                        '${groupStudents.length} Santri',
+                        style: const TextStyle(fontSize: 10, color: PremiumColors.primaryLight),
+                      ),
+                    ),
+                  ],
+                ),
+                TextButton.icon(
+                  onPressed: () => _showExamineeForm(context, dataProvider, null, autoGroupId: groupId),
+                  icon: const Icon(Icons.add, size: 16, color: PremiumColors.accent),
+                  label: const Text('Tambah Santri', style: TextStyle(color: PremiumColors.accent, fontSize: 12)),
+                ),
+              ],
+            ),
+            const SizedBox(height: 8),
+            
+            // List Santri di Kelompok ini
+            if (groupStudents.isEmpty)
+              const Padding(
+                padding: EdgeInsets.only(left: 28, bottom: 20, top: 4),
+                child: Text('Belum ada calon santri di kelompok ini.', style: TextStyle(color: PremiumColors.textMuted, fontSize: 13)),
+              )
+            else ...[
+              ...groupStudents.map((examinee) {
+                final String name = examinee['name'];
+                final String regNum = examinee['registration_number'];
+                final String gender = examinee['gender'] ?? 'PUTRA';
+                final String school = examinee['school'] ?? 'MTS';
+                final String? placement = examinee['placement'];
+
+                return Padding(
+                  padding: const EdgeInsets.only(bottom: 8),
+                  child: GlassCard(
+                    padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 10),
+                    child: Row(
+                      mainAxisAlignment: MainAxisAlignment.spaceBetween,
+                      children: [
+                        Expanded(
+                          child: Column(
+                            crossAxisAlignment: CrossAxisAlignment.start,
+                            children: [
+                              Row(
+                                children: [
+                                  Text(
+                                    name,
+                                    style: const TextStyle(fontWeight: FontWeight.bold, fontSize: 15),
+                                  ),
+                                  const SizedBox(width: 8),
                                   Container(
-                                    padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 2),
+                                    padding: const EdgeInsets.symmetric(horizontal: 5, vertical: 1.5),
                                     decoration: BoxDecoration(
-                                      color: Colors.green.withOpacity(0.1),
-                                      borderRadius: BorderRadius.circular(6),
+                                      color: gender == 'PUTRA' ? Colors.blue.withOpacity(0.15) : Colors.pink.withOpacity(0.15),
+                                      borderRadius: BorderRadius.circular(4),
                                     ),
                                     child: Text(
-                                      'Lulus Kelas: $placement',
-                                      style: const TextStyle(fontSize: 10, color: PremiumColors.accent, fontWeight: FontWeight.bold),
+                                      gender,
+                                      style: TextStyle(
+                                        fontSize: 9, 
+                                        fontWeight: FontWeight.bold, 
+                                        color: gender == 'PUTRA' ? Colors.blueAccent : Colors.pinkAccent
+                                      ),
                                     ),
-                                  )
-                                ]
-                              ],
-                            ),
-                          ),
-                          Row(
-                            children: [
-                              IconButton(
-                                icon: const Icon(Icons.edit_outlined, color: Colors.blueAccent, size: 20),
-                                onPressed: () => _showExamineeForm(context, dataProvider, examinee),
+                                  ),
+                                  const SizedBox(width: 4),
+                                  Container(
+                                    padding: const EdgeInsets.symmetric(horizontal: 5, vertical: 1.5),
+                                    decoration: BoxDecoration(
+                                      color: Colors.orange.withOpacity(0.15),
+                                      borderRadius: BorderRadius.circular(4),
+                                    ),
+                                    child: Text(
+                                      school,
+                                      style: const TextStyle(fontSize: 9, fontWeight: FontWeight.bold, color: Colors.orangeAccent),
+                                    ),
+                                  ),
+                                ],
                               ),
-                              IconButton(
-                                icon: const Icon(Icons.delete_outline, color: Colors.redAccent, size: 20),
-                                onPressed: () => _confirmDeleteExaminee(context, dataProvider, examinee['id'], name),
+                              const SizedBox(height: 4),
+                              Text(
+                                'No. Daftar: $regNum',
+                                style: const TextStyle(color: PremiumColors.textMuted, fontSize: 11),
                               ),
+                              if (placement != null) ...[
+                                const SizedBox(height: 6),
+                                Container(
+                                  padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 2),
+                                  decoration: BoxDecoration(
+                                    color: Colors.green.withOpacity(0.1),
+                                    borderRadius: BorderRadius.circular(6),
+                                  ),
+                                  child: Text(
+                                    'Lulus Kelas: $placement',
+                                    style: const TextStyle(fontSize: 10, color: PremiumColors.accent, fontWeight: FontWeight.bold),
+                                  ),
+                                )
+                              ]
                             ],
-                          )
-                        ],
-                      ),
-                    );
-                  },
-                ),
-        ),
-      ],
+                          ),
+                        ),
+                        Row(
+                          children: [
+                            IconButton(
+                              icon: const Icon(Icons.edit_outlined, color: Colors.blueAccent, size: 18),
+                              onPressed: () => _showExamineeForm(context, dataProvider, examinee, autoGroupId: groupId),
+                            ),
+                            IconButton(
+                              icon: const Icon(Icons.delete_outline, color: Colors.redAccent, size: 18),
+                              onPressed: () => _confirmDeleteExaminee(context, dataProvider, examinee['id'], name),
+                            ),
+                          ],
+                        )
+                      ],
+                    ),
+                  ),
+                );
+              }),
+              const SizedBox(height: 16),
+            ],
+          ],
+        );
+      },
     );
   }
 
@@ -424,11 +520,13 @@ class _AdminDashboardState extends State<AdminDashboard> with SingleTickerProvid
     );
   }
 
-  // Dialog Form Registrasi User (Penguji)
-  void _showUserForm(BuildContext context, DataProvider dataProvider) {
-    final userController = TextEditingController();
+  // Dialog Form Registrasi & Edit Penguji (User)
+  void _showUserForm(BuildContext context, DataProvider dataProvider, dynamic user) {
+    final isEdit = user != null;
+    final userController = TextEditingController(text: user?['username']);
     final passController = TextEditingController();
-    String selectedRole = 'EXAMINER';
+    String selectedRole = user?['role'] ?? 'EXAMINER';
+    int? selectedGroupId = user?['group_id'];
 
     showDialog(
       context: context,
@@ -437,105 +535,63 @@ class _AdminDashboardState extends State<AdminDashboard> with SingleTickerProvid
           builder: (context, setState) {
             return AlertDialog(
               backgroundColor: PremiumColors.bgDarkSecondary,
-              title: const Text('Akun Penguji Baru'),
-              content: Column(
-                mainAxisSize: MainAxisSize.min,
-                children: [
-                  TextField(
-                    controller: userController,
-                    decoration: const InputDecoration(labelText: 'Username', hintText: 'nama_penguji'),
-                  ),
-                  const SizedBox(height: 16),
-                  TextField(
-                    controller: passController,
-                    decoration: const InputDecoration(labelText: 'Password', hintText: 'Ketik password'),
-                    obscureText: true,
-                  ),
-                  const SizedBox(height: 16),
-                  DropdownButtonFormField<String>(
-                    value: selectedRole,
-                    decoration: const InputDecoration(labelText: 'Peran (Role)'),
-                    dropdownColor: PremiumColors.bgDarkSecondary,
-                    items: const [
-                      DropdownMenuItem(value: 'EXAMINER', child: Text('Penguji Biasa (EXAMINER)')),
-                      DropdownMenuItem(value: 'SUPER_USER', child: Text('Super User (SUPER_USER)')),
-                    ],
-                    onChanged: (val) {
-                      if (val != null) setState(() => selectedRole = val);
-                    },
-                  )
-                ],
-              ),
-              actions: [
-                TextButton(
-                  onPressed: () => Navigator.pop(context),
-                  child: const Text('Batal', style: TextStyle(color: PremiumColors.textMuted)),
-                ),
-                ElevatedButton(
-                  style: ElevatedButton.styleFrom(backgroundColor: PremiumColors.primary),
-                  onPressed: () async {
-                    if (userController.text.trim().isNotEmpty && passController.text.isNotEmpty) {
-                      final success = await dataProvider.registerUser(userController.text.trim(), passController.text, selectedRole);
-                      if (success && mounted) Navigator.pop(context);
-                    }
-                  },
-                  child: const Text('Daftarkan'),
-                ),
-              ],
-            );
-          },
-        );
-      },
-    );
-  }
-
-  // Dialog Penugasan Kelompok ke Penguji
-  void _showAssignGroupsDialog(
-    BuildContext context, 
-    DataProvider dataProvider, 
-    int userId, 
-    String username, 
-    List<dynamic> assignedGroups
-  ) {
-    // List ID kelompok yang saat ini ditugaskan
-    final List<int> selectedIds = assignedGroups.map((g) => g['id'] as int).toList();
-
-    showDialog(
-      context: context,
-      builder: (context) {
-        return StatefulBuilder(
-          builder: (context, setState) {
-            return AlertDialog(
-              backgroundColor: PremiumColors.bgDarkSecondary,
-              title: Text('Tugaskan Kelompok: $username'),
-              content: SizedBox(
-                width: double.maxFinite,
-                child: dataProvider.groups.isEmpty
-                    ? const Text('Belum ada kelompok yang terdaftar.', style: TextStyle(color: PremiumColors.textMuted))
-                    : ListView.builder(
-                        shrinkWrap: true,
-                        itemCount: dataProvider.groups.length,
-                        itemBuilder: (context, index) {
-                          final g = dataProvider.groups[index];
-                          final int gId = g['id'];
-                          final bool isChecked = selectedIds.contains(gId);
-
-                          return CheckboxListTile(
-                            title: Text(g['group_name']),
-                            value: isChecked,
-                            activeColor: PremiumColors.accent,
-                            onChanged: (bool? val) {
-                              setState(() {
-                                if (val == true) {
-                                  selectedIds.add(gId);
-                                } else {
-                                  selectedIds.remove(gId);
-                                }
-                              });
-                            },
-                          );
+              title: Text(isEdit ? 'Ubah Akun Penguji' : 'Akun Penguji Baru'),
+              content: SingleChildScrollView(
+                child: Column(
+                  mainAxisSize: MainAxisSize.min,
+                  children: [
+                    TextField(
+                      controller: userController,
+                      decoration: const InputDecoration(labelText: 'Username', hintText: 'nama_penguji'),
+                    ),
+                    const SizedBox(height: 16),
+                    TextField(
+                      controller: passController,
+                      decoration: InputDecoration(
+                        labelText: isEdit ? 'Password Baru (Kosongkan jika tetap)' : 'Password',
+                        hintText: isEdit ? 'Biarkan kosong jika tidak diubah' : 'Ketik password'
+                      ),
+                      obscureText: true,
+                    ),
+                    const SizedBox(height: 16),
+                    DropdownButtonFormField<String>(
+                      value: selectedRole,
+                      decoration: const InputDecoration(labelText: 'Peran (Role)'),
+                      dropdownColor: PremiumColors.bgDarkSecondary,
+                      items: const [
+                        DropdownMenuItem(value: 'EXAMINER', child: Text('Penguji Biasa (EXAMINER)')),
+                        DropdownMenuItem(value: 'SUPER_USER', child: Text('Super User (SUPER_USER)')),
+                      ],
+                      onChanged: (val) {
+                        if (val != null) {
+                          setState(() {
+                            selectedRole = val;
+                            if (selectedRole == 'SUPER_USER') {
+                              selectedGroupId = null;
+                            }
+                          });
+                        }
+                      },
+                    ),
+                    if (selectedRole == 'EXAMINER') ...[
+                      const SizedBox(height: 16),
+                      DropdownButtonFormField<int?>(
+                        value: selectedGroupId,
+                        decoration: const InputDecoration(labelText: 'Pilih Kelompok Tugas'),
+                        dropdownColor: PremiumColors.bgDarkSecondary,
+                        items: [
+                          const DropdownMenuItem<int?>(value: null, child: Text('Tanpa Kelompok')),
+                          ...dataProvider.groups.map((g) {
+                            return DropdownMenuItem<int?>(value: g['id'], child: Text(g['group_name']));
+                          }),
+                        ],
+                        onChanged: (val) {
+                          setState(() => selectedGroupId = val);
                         },
                       ),
+                    ]
+                  ],
+                ),
               ),
               actions: [
                 TextButton(
@@ -545,8 +601,37 @@ class _AdminDashboardState extends State<AdminDashboard> with SingleTickerProvid
                 ElevatedButton(
                   style: ElevatedButton.styleFrom(backgroundColor: PremiumColors.primary),
                   onPressed: () async {
-                    final success = await dataProvider.assignGroupsToUser(userId, selectedIds);
-                    if (success && mounted) Navigator.pop(context);
+                    if (userController.text.trim().isNotEmpty) {
+                      if (!isEdit && passController.text.isEmpty) {
+                        ScaffoldMessenger.of(context).showSnackBar(
+                          const SnackBar(content: Text('Password wajib diisi untuk pengguna baru!'), backgroundColor: Colors.redAccent)
+                        );
+                        return;
+                      }
+
+                      bool success;
+                      if (isEdit) {
+                        success = await dataProvider.updateUser(
+                          user['id'], 
+                          userController.text.trim(), 
+                          passController.text.isNotEmpty ? passController.text : null, 
+                          selectedRole, 
+                          selectedGroupId
+                        );
+                      } else {
+                        success = await dataProvider.registerUser(
+                          userController.text.trim(), 
+                          passController.text, 
+                          selectedRole, 
+                          selectedGroupId
+                        );
+                      }
+                      
+                      if (success && mounted) {
+                        Navigator.pop(context);
+                        _refreshData();
+                      }
+                    }
                   },
                   child: const Text('Simpan'),
                 ),
@@ -558,11 +643,48 @@ class _AdminDashboardState extends State<AdminDashboard> with SingleTickerProvid
     );
   }
 
-  // Dialog Form Calon Santri (Create / Update)
-  void _showExamineeForm(BuildContext context, DataProvider dataProvider, dynamic examinee) {
-    final regController = TextEditingController(text: examinee?['registration_number']);
+  // Konfirmasi & Proses Hapus User (Penguji)
+  void _confirmDeleteUser(BuildContext context, DataProvider dataProvider, int id, String username) {
+    showDialog(
+      context: context,
+      builder: (context) => AlertDialog(
+        backgroundColor: PremiumColors.bgDarkSecondary,
+        title: const Text('Hapus Akun Penguji'),
+        content: Text('Apakah Anda yakin ingin menghapus akun "$username"? Tindakan ini tidak bisa dibatalkan.'),
+        actions: [
+          TextButton(
+            onPressed: () => Navigator.pop(context),
+            child: const Text('Batal', style: TextStyle(color: PremiumColors.textMuted)),
+          ),
+          ElevatedButton(
+            style: ElevatedButton.styleFrom(backgroundColor: Colors.redAccent),
+            onPressed: () async {
+              final success = await dataProvider.deleteUser(id);
+              if (success && mounted) {
+                Navigator.pop(context);
+                _refreshData();
+              } else if (!success && mounted) {
+                Navigator.pop(context);
+                ScaffoldMessenger.of(context).showSnackBar(
+                  SnackBar(
+                    content: Text(dataProvider.error ?? 'Gagal menghapus pengguna'),
+                    backgroundColor: Colors.redAccent,
+                  )
+                );
+              }
+            },
+            child: const Text('Hapus'),
+          ),
+        ],
+      ),
+    );
+  }
+
+  // Dialog Form Calon Santri (Tanpa No Pendaftaran, ada Gender & School)
+  void _showExamineeForm(BuildContext context, DataProvider dataProvider, dynamic examinee, {required int autoGroupId}) {
     final nameController = TextEditingController(text: examinee?['name']);
-    int? selectedGroupId = examinee?['group_id'];
+    String selectedGender = examinee?['gender'] ?? 'PUTRA';
+    String selectedSchool = examinee?['school'] ?? 'MTS';
     final isEdit = examinee != null;
 
     showDialog(
@@ -573,34 +695,42 @@ class _AdminDashboardState extends State<AdminDashboard> with SingleTickerProvid
             return AlertDialog(
               backgroundColor: PremiumColors.bgDarkSecondary,
               title: Text(isEdit ? 'Ubah Calon Santri' : 'Tambah Calon Santri'),
-              content: Column(
-                mainAxisSize: MainAxisSize.min,
-                children: [
-                  TextField(
-                    controller: regController,
-                    decoration: const InputDecoration(labelText: 'Nomor Pendaftaran', hintText: 'REG2026xxxx'),
-                  ),
-                  const SizedBox(height: 16),
-                  TextField(
-                    controller: nameController,
-                    decoration: const InputDecoration(labelText: 'Nama Lengkap', hintText: 'Nama Santri'),
-                  ),
-                  const SizedBox(height: 16),
-                  DropdownButtonFormField<int?>(
-                    value: selectedGroupId,
-                    decoration: const InputDecoration(labelText: 'Pilih Kelompok'),
-                    dropdownColor: PremiumColors.bgDarkSecondary,
-                    items: [
-                      const DropdownMenuItem<int?>(value: null, child: Text('Belum Masuk Kelompok')),
-                      ...dataProvider.groups.map((g) {
-                        return DropdownMenuItem<int?>(value: g['id'], child: Text(g['group_name']));
-                      }),
-                    ],
-                    onChanged: (val) {
-                      setState(() => selectedGroupId = val);
-                    },
-                  )
-                ],
+              content: SingleChildScrollView(
+                child: Column(
+                  mainAxisSize: MainAxisSize.min,
+                  children: [
+                    TextField(
+                      controller: nameController,
+                      decoration: const InputDecoration(labelText: 'Nama Lengkap', hintText: 'Nama Santri'),
+                    ),
+                    const SizedBox(height: 16),
+                    DropdownButtonFormField<String>(
+                      value: selectedGender,
+                      decoration: const InputDecoration(labelText: 'Jenis Kelamin'),
+                      dropdownColor: PremiumColors.bgDarkSecondary,
+                      items: const [
+                        DropdownMenuItem(value: 'PUTRA', child: Text('Putra (Laki-laki)')),
+                        DropdownMenuItem(value: 'PUTRI', child: Text('Putri (Perempuan)')),
+                      ],
+                      onChanged: (val) {
+                        if (val != null) setState(() => selectedGender = val);
+                      },
+                    ),
+                    const SizedBox(height: 16),
+                    DropdownButtonFormField<String>(
+                      value: selectedSchool,
+                      decoration: const InputDecoration(labelText: 'Jenjang Sekolah Pendaftaran'),
+                      dropdownColor: PremiumColors.bgDarkSecondary,
+                      items: const [
+                        DropdownMenuItem(value: 'MTS', child: Text('MTs (Tingkat Menengah)')),
+                        DropdownMenuItem(value: 'ALIYAH', child: Text('Aliyah (Tingkat Atas)')),
+                      ],
+                      onChanged: (val) {
+                        if (val != null) setState(() => selectedSchool = val);
+                      },
+                    ),
+                  ],
+                ),
               ),
               actions: [
                 TextButton(
@@ -610,20 +740,22 @@ class _AdminDashboardState extends State<AdminDashboard> with SingleTickerProvid
                 ElevatedButton(
                   style: ElevatedButton.styleFrom(backgroundColor: PremiumColors.primary),
                   onPressed: () async {
-                    if (regController.text.trim().isNotEmpty && nameController.text.trim().isNotEmpty) {
+                    if (nameController.text.trim().isNotEmpty) {
                       bool success;
                       if (isEdit) {
                         success = await dataProvider.updateExaminee(
                           examinee['id'], 
-                          regController.text.trim(), 
                           nameController.text.trim(), 
-                          selectedGroupId
+                          selectedGender,
+                          selectedSchool,
+                          autoGroupId
                         );
                       } else {
                         success = await dataProvider.createExaminee(
-                          regController.text.trim(), 
                           nameController.text.trim(), 
-                          selectedGroupId
+                          selectedGender,
+                          selectedSchool,
+                          autoGroupId
                         );
                       }
                       if (success && mounted) {

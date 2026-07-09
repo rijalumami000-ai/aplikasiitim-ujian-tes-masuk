@@ -101,12 +101,17 @@ class ApiService {
   }
 
   // Super User: Register User Baru
-  Future<Map<String, dynamic>> registerUser(String username, String password, String role) async {
+  Future<Map<String, dynamic>> registerUser(String username, String password, String role, int? groupId) async {
     try {
       final response = await http.post(
         Uri.parse('$_baseUrl/api/auth/register'),
         headers: _getHeaders(),
-        body: jsonEncode({'username': username, 'password': password, 'role': role}),
+        body: jsonEncode({
+          'username': username,
+          'password': password,
+          'role': role,
+          'group_id': groupId
+        }),
       );
       return _handleResponse(response);
     } catch (e) {
@@ -122,6 +127,38 @@ class ApiService {
         headers: _getHeaders(),
       );
       return _handleResponse(response) as List<dynamic>;
+    } catch (e) {
+      rethrow;
+    }
+  }
+
+  // Super User: Update Pengguna
+  Future<Map<String, dynamic>> updateUser(int id, String username, String? password, String role, int? groupId) async {
+    try {
+      final response = await http.put(
+        Uri.parse('$_baseUrl/api/users/$id'),
+        headers: _getHeaders(),
+        body: jsonEncode({
+          'username': username,
+          'password': password,
+          'role': role,
+          'group_id': groupId
+        }),
+      );
+      return _handleResponse(response);
+    } catch (e) {
+      rethrow;
+    }
+  }
+
+  // Super User: Hapus Pengguna
+  Future<void> deleteUser(int id) async {
+    try {
+      final response = await http.delete(
+        Uri.parse('$_baseUrl/api/users/$id'),
+        headers: _getHeaders(),
+      );
+      _handleResponse(response);
     } catch (e) {
       rethrow;
     }
@@ -213,14 +250,15 @@ class ApiService {
   }
 
   // Super User: Tambah Calon Santri
-  Future<Map<String, dynamic>> createExaminee(String regNum, String name, int? groupId) async {
+  Future<Map<String, dynamic>> createExaminee(String name, String gender, String school, int? groupId) async {
     try {
       final response = await http.post(
         Uri.parse('$_baseUrl/api/examinees'),
         headers: _getHeaders(),
         body: jsonEncode({
-          'registration_number': regNum,
           'name': name,
+          'gender': gender,
+          'school': school,
           'group_id': groupId,
         }),
       );
@@ -231,14 +269,15 @@ class ApiService {
   }
 
   // Super User: Edit Calon Santri
-  Future<Map<String, dynamic>> updateExaminee(int id, String regNum, String name, int? groupId) async {
+  Future<Map<String, dynamic>> updateExaminee(int id, String name, String gender, String school, int? groupId) async {
     try {
       final response = await http.put(
         Uri.parse('$_baseUrl/api/examinees/$id'),
         headers: _getHeaders(),
         body: jsonEncode({
-          'registration_number': regNum,
           'name': name,
+          'gender': gender,
+          'school': school,
           'group_id': groupId,
         }),
       );

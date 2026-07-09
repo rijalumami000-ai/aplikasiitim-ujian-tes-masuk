@@ -159,10 +159,9 @@ class DataProvider extends ChangeNotifier {
 
   // --- CRUD EXAMINEES ---
 
-  Future<bool> createExaminee(String regNum, String name, int? groupId) async {
+  Future<bool> createExaminee(String name, String gender, String school, int? groupId) async {
     try {
-      final newExaminee = await apiService.createExaminee(regNum, name, groupId);
-      // Agar data langsung lengkap dengan nama kelompok, ambil ulang atau perbarui cache lokal
+      await apiService.createExaminee(name, gender, school, groupId);
       await fetchExaminees();
       await fetchRecap();
       return true;
@@ -173,9 +172,9 @@ class DataProvider extends ChangeNotifier {
     }
   }
 
-  Future<bool> updateExaminee(int id, String regNum, String name, int? groupId) async {
+  Future<bool> updateExaminee(int id, String name, String gender, String school, int? groupId) async {
     try {
-      await apiService.updateExaminee(id, regNum, name, groupId);
+      await apiService.updateExaminee(id, name, gender, school, groupId);
       await fetchExaminees();
       await fetchRecap();
       return true;
@@ -202,10 +201,35 @@ class DataProvider extends ChangeNotifier {
 
   // --- MANAGE USERS & ASSIGNMENTS ---
 
-  Future<bool> registerUser(String username, String password, String role) async {
+  Future<bool> registerUser(String username, String password, String role, int? groupId) async {
     try {
-      await apiService.registerUser(username, password, role);
+      await apiService.registerUser(username, password, role, groupId);
       await fetchUsers();
+      return true;
+    } catch (e) {
+      _error = e.toString().replaceFirst('Exception: ', '');
+      notifyListeners();
+      return false;
+    }
+  }
+
+  Future<bool> updateUser(int id, String username, String? password, String role, int? groupId) async {
+    try {
+      await apiService.updateUser(id, username, password, role, groupId);
+      await fetchUsers();
+      return true;
+    } catch (e) {
+      _error = e.toString().replaceFirst('Exception: ', '');
+      notifyListeners();
+      return false;
+    }
+  }
+
+  Future<bool> deleteUser(int id) async {
+    try {
+      await apiService.deleteUser(id);
+      _users.removeWhere((u) => u['id'] == id);
+      notifyListeners();
       return true;
     } catch (e) {
       _error = e.toString().replaceFirst('Exception: ', '');

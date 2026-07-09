@@ -9,15 +9,6 @@ BEGIN
     END IF;
 END$$;
 
--- Buat tabel users
-CREATE TABLE IF NOT EXISTS users (
-    id SERIAL PRIMARY KEY,
-    username VARCHAR(50) UNIQUE NOT NULL,
-    password VARCHAR(255) NOT NULL,
-    role user_role DEFAULT 'EXAMINER',
-    created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
-);
-
 -- Buat tabel groups
 CREATE TABLE IF NOT EXISTS groups (
     id SERIAL PRIMARY KEY,
@@ -26,11 +17,14 @@ CREATE TABLE IF NOT EXISTS groups (
     created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
 );
 
--- Buat tabel user_groups (Penugasan)
-CREATE TABLE IF NOT EXISTS user_groups (
-    user_id INT REFERENCES users(id) ON DELETE CASCADE,
-    group_id INT REFERENCES groups(id) ON DELETE CASCADE,
-    PRIMARY KEY (user_id, group_id)
+-- Buat tabel users
+CREATE TABLE IF NOT EXISTS users (
+    id SERIAL PRIMARY KEY,
+    username VARCHAR(50) UNIQUE NOT NULL,
+    password VARCHAR(255) NOT NULL,
+    role user_role DEFAULT 'EXAMINER',
+    group_id INT REFERENCES groups(id) ON DELETE SET NULL,
+    created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
 );
 
 -- Buat tabel examinees (Calon Santri)
@@ -38,6 +32,8 @@ CREATE TABLE IF NOT EXISTS examinees (
     id SERIAL PRIMARY KEY,
     registration_number VARCHAR(50) UNIQUE NOT NULL,
     name VARCHAR(100) NOT NULL,
+    gender VARCHAR(10) NOT NULL, -- 'PUTRA' atau 'PUTRI'
+    school VARCHAR(10) NOT NULL, -- 'MTS' atau 'ALIYAH'
     group_id INT REFERENCES groups(id) ON DELETE SET NULL,
     created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
 );

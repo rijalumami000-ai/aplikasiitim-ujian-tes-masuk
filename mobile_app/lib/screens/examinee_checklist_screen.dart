@@ -180,10 +180,42 @@ class _ExamineeChecklistScreenState extends State<ExamineeChecklistScreen> {
                                                   color: PremiumColors.textMain
                                                 ),
                                               ),
-                                              const SizedBox(height: 2),
-                                              Text(
-                                                'No. Daftar: $regNum',
-                                                style: const TextStyle(fontSize: 12, color: PremiumColors.textMuted),
+                                              const SizedBox(height: 4),
+                                              Row(
+                                                children: [
+                                                  Text(
+                                                    'No. Daftar: $regNum',
+                                                    style: const TextStyle(fontSize: 12, color: PremiumColors.textMuted),
+                                                  ),
+                                                  const SizedBox(width: 8),
+                                                  Container(
+                                                    padding: const EdgeInsets.symmetric(horizontal: 5, vertical: 1.5),
+                                                    decoration: BoxDecoration(
+                                                      color: (examinee['gender'] ?? 'PUTRA') == 'PUTRA' ? Colors.blue.withOpacity(0.15) : Colors.pink.withOpacity(0.15),
+                                                      borderRadius: BorderRadius.circular(4),
+                                                    ),
+                                                    child: Text(
+                                                      examinee['gender'] ?? 'PUTRA',
+                                                      style: TextStyle(
+                                                        fontSize: 9, 
+                                                        fontWeight: FontWeight.bold, 
+                                                        color: (examinee['gender'] ?? 'PUTRA') == 'PUTRA' ? Colors.blueAccent : Colors.pinkAccent
+                                                      ),
+                                                    ),
+                                                  ),
+                                                  const SizedBox(width: 4),
+                                                  Container(
+                                                    padding: const EdgeInsets.symmetric(horizontal: 5, vertical: 1.5),
+                                                    decoration: BoxDecoration(
+                                                      color: Colors.orange.withOpacity(0.15),
+                                                      borderRadius: BorderRadius.circular(4),
+                                                    ),
+                                                    child: Text(
+                                                      examinee['school'] ?? 'MTS',
+                                                      style: const TextStyle(fontSize: 9, fontWeight: FontWeight.bold, color: Colors.orangeAccent),
+                                                    ),
+                                                  ),
+                                                ],
                                               ),
                                             ],
                                           ),

@@ -6,7 +6,7 @@ const db = require('./db');
 const { authenticateToken, requireRole } = require('./middleware/auth');
 
 const app = express();
-const PORT = process.env.PORT || 3000;
+const PORT = process.env.PORT || 3002; // Menggunakan port 3002 secara default
 
 app.use(cors());
 app.use(express.json());
@@ -33,9 +33,8 @@ app.post('/api/auth/login', async (req, res) => {
       return res.status(401).json({ message: 'Username atau password salah' });
     }
 
-    // Ambil kelompok yang ditugaskan ke user ini
-    const groupResult = await db.query('SELECT group_id FROM user_groups WHERE user_id = $1', [user.id]);
-    const assignedGroups = groupResult.rows.map(row => row.group_id);
+    // Ambil kelompok (array berisi max 1 item demi kompatibilitas klien)
+    const assignedGroups = user.group_id ? [user.group_id] : [];
 
     const token = jwt.sign(
       { id: user.id, username: user.username, role: user.role },
@@ -58,20 +57,21 @@ app.post('/api/auth/login', async (req, res) => {
   }
 });
 
-// GET /api/auth/me - Mendapatkan data profil pengguna yang login
+// GET /api/auth/me - Profil yang sedang login
 app.get('/api/auth/me', authenticateToken, async (req, res) => {
   try {
-    const result = await db.query('SELECT id, username, role FROM users WHERE id = $1', [req.user.id]);
+    const result = await db.query('SELECT id, username, role, group_id FROM users WHERE id = $1', [req.user.id]);
     if (result.rows.length === 0) {
       return res.status(404).json({ message: 'Pengguna tidak ditemukan' });
     }
 
     const user = result.rows[0];
-    const groupResult = await db.query('SELECT group_id FROM user_groups WHERE user_id = $1', [user.id]);
-    const assignedGroups = groupResult.rows.map(row => row.group_id);
+    const assignedGroups = user.group_id ? [user.group_id] : [];
 
     res.json({
-      ...user,
+      id: user.id,
+      username: user.username,
+      role: user.role,
       assignedGroups
     });
   } catch (err) {
@@ -80,9 +80,9 @@ app.get('/api/auth/me', authenticateToken, async (req, res) => {
   }
 });
 
-// POST /api/auth/register - Mendaftarkan penguji baru (Hanya Super User)
+// POST /api/auth/register - Mendaftarkan user baru (Hanya Super User)
 app.post('/api/auth/register', authenticateToken, requireRole('SUPER_USER'), async (req, res) => {
-  const { username, password, role } = req.body;
+  const { username, password, role, group_id } = req.body;
 
   if (!username || !password || !role) {
     return res.status(400).json({ message: 'Username, password, dan role wajib diisi' });
@@ -100,8 +100,8 @@ app.post('/api/auth/register', authenticateToken, requireRole('SUPER_USER'), asy
 
     const hashedPassword = await bcrypt.hash(password, 10);
     const result = await db.query(
-      'INSERT INTO users (username, password, role) VALUES ($1, $2, $3) RETURNING id, username, role',
-      [username, hashedPassword, role]
+      'INSERT INTO users (username, password, role, group_id) VALUES ($1, $2, $3, $4) RETURNING id, username, role, group_id',
+      [username, hashedPassword, role, role === 'SUPER_USER' ? null : group_id]
     );
 
     res.status(201).json({
@@ -115,18 +115,20 @@ app.post('/api/auth/register', authenticateToken, requireRole('SUPER_USER'), asy
 });
 
 
-// --- MANAJEMEN PENGGUNA (Hanya Super User) ---
+// --- MANAJEMEN PENGGUNA / PENGUJI (Hanya Super User) ---
 
-// GET /api/users - Mendapatkan semua user penguji beserta kelompoknya
+// GET /api/users - Semua user penguji beserta nama kelompoknya
 app.get('/api/users', authenticateToken, requireRole('SUPER_USER'), async (req, res) => {
   try {
     const usersResult = await db.query(`
-      SELECT u.id, u.username, u.role, 
-        COALESCE(json_agg(json_build_object('id', g.id, 'name', g.group_name)) FILTER (WHERE g.id IS NOT NULL), '[]') as assigned_groups
+      SELECT u.id, u.username, u.role, u.group_id,
+             g.group_name as group_name,
+             COALESCE(
+               CASE WHEN g.id IS NOT NULL THEN json_build_array(json_build_object('id', g.id, 'name', g.group_name))
+               ELSE '[]'::json END, '[]'::json
+             ) as assigned_groups
       FROM users u
-      LEFT JOIN user_groups ug ON u.id = ug.user_id
-      LEFT JOIN groups g ON ug.group_id = g.id
-      GROUP BY u.id, u.username, u.role
+      LEFT JOIN groups g ON u.group_id = g.id
       ORDER BY u.username ASC
     `);
     res.json(usersResult.rows);
@@ -136,44 +138,96 @@ app.get('/api/users', authenticateToken, requireRole('SUPER_USER'), async (req, 
   }
 });
 
-// POST /api/users/assign-groups - Menugaskan Penguji ke Kelompok
+// PUT /api/users/:id - Mengedit pengguna penguji
+app.put('/api/users/:id', authenticateToken, requireRole('SUPER_USER'), async (req, res) => {
+  const { id } = req.params;
+  const { username, password, role, group_id } = req.body;
+
+  if (!username || !role) {
+    return res.status(400).json({ message: 'Username dan role wajib diisi' });
+  }
+
+  try {
+    // Cek duplikasi username untuk ID lain
+    const userCheck = await db.query('SELECT id FROM users WHERE username = $1 AND id <> $2', [username, id]);
+    if (userCheck.rows.length > 0) {
+      return res.status(400).json({ message: 'Username sudah terpakai oleh akun lain' });
+    }
+
+    let query = 'UPDATE users SET username = $1, role = $2, group_id = $3';
+    let params = [username, role, role === 'SUPER_USER' ? null : group_id];
+
+    if (password && password.trim().isNotEmpty) {
+      const hashedPassword = await bcrypt.hash(password, 10);
+      query += ', password = $4 WHERE id = $5 RETURNING id, username, role, group_id';
+      params.push(hashedPassword, id);
+    } else {
+      query += ' WHERE id = $4 RETURNING id, username, role, group_id';
+      params.push(id);
+    }
+
+    const result = await db.query(query, params);
+    if (result.rows.length === 0) {
+      return res.status(404).json({ message: 'Pengguna tidak ditemukan' });
+    }
+
+    res.json(result.rows[0]);
+  } catch (err) {
+    console.error(err);
+    res.status(500).json({ message: 'Terjadi kesalahan pada server' });
+  }
+});
+
+// DELETE /api/users/:id - Menghapus pengguna penguji (Safeguard)
+app.delete('/api/users/:id', authenticateToken, requireRole('SUPER_USER'), async (req, res) => {
+  const { id } = req.params;
+
+  try {
+    // Periksa apakah user pernah menceklis kelulusan calon santri
+    const checkExams = await db.query('SELECT 1 FROM exam_results WHERE examiner_id = $1 LIMIT 1', [id]);
+    if (checkExams.rows.length > 0) {
+      return res.status(400).json({ 
+        message: 'Tidak dapat menghapus penguji ini karena sudah pernah melakukan penilaian penempatan kelas santri.' 
+      });
+    }
+
+    const result = await db.query('DELETE FROM users WHERE id = $1 RETURNING id, username', [id]);
+    if (result.rows.length === 0) {
+      return res.status(404).json({ message: 'Pengguna tidak ditemukan' });
+    }
+
+    res.json({ message: 'Pengguna berhasil dihapus' });
+  } catch (err) {
+    console.error(err);
+    res.status(500).json({ message: 'Terjadi kesalahan pada server' });
+  }
+});
+
+// POST /api/users/assign-groups - Menugaskan Penguji ke Kelompok Tunggal (Banyak-ke-satu)
 app.post('/api/users/assign-groups', authenticateToken, requireRole('SUPER_USER'), async (req, res) => {
-  const { user_id, group_ids } = req.body;
+  const { user_id, group_ids } = req.body; // group_ids berupa array demi kompatibilitas klien
 
   if (!user_id || !Array.isArray(group_ids)) {
     return res.status(400).json({ message: 'user_id dan group_ids (array) wajib diisi' });
   }
 
-  const client = await db.pool.connect();
+  // Karena 1 user hanya bisa 1 kelompok, ambil indeks pertama dari array, atau set ke null jika kosong
+  const groupId = group_ids.length > 0 ? group_ids[0] : null;
+
   try {
-    await client.query('BEGIN');
-
-    // Hapus penugasan kelompok lama
-    await client.query('DELETE FROM user_groups WHERE user_id = $1', [user_id]);
-
-    // Tambah penugasan kelompok baru jika ada
-    if (group_ids.length > 0) {
-      for (const group_id of group_ids) {
-        await client.query(
-          'INSERT INTO user_groups (user_id, group_id) VALUES ($1, $2)',
-          [user_id, group_id]
-        );
-      }
+    const result = await db.query('UPDATE users SET group_id = $1 WHERE id = $2 RETURNING id', [groupId, user_id]);
+    if (result.rows.length === 0) {
+      return res.status(404).json({ message: 'Pengguna tidak ditemukan' });
     }
-
-    await client.query('COMMIT');
     res.json({ message: 'Penugasan kelompok berhasil diperbarui' });
   } catch (err) {
-    await client.query('ROLLBACK');
     console.error(err);
     res.status(500).json({ message: 'Terjadi kesalahan pada server' });
-  } finally {
-    client.release();
   }
 });
 
 
-// --- CRUD KELOMPOK (CRUD Groups) ---
+// --- CRUD KELOMPOK (Groups) ---
 
 // GET /api/groups - Melihat semua kelompok (Semua Role)
 app.get('/api/groups', authenticateToken, async (req, res) => {
@@ -260,7 +314,7 @@ app.delete('/api/groups/:id', authenticateToken, requireRole('SUPER_USER'), asyn
 app.get('/api/examinees', authenticateToken, async (req, res) => {
   try {
     const result = await db.query(`
-      SELECT e.id, e.registration_number, e.name, e.group_id, g.group_name,
+      SELECT e.id, e.registration_number, e.name, e.gender, e.school, e.group_id, g.group_name,
              er.grade as placement, er.checked_at, u.username as examiner_name
       FROM examinees e
       LEFT JOIN groups g ON e.group_id = g.id
@@ -275,23 +329,29 @@ app.get('/api/examinees', authenticateToken, async (req, res) => {
   }
 });
 
-// POST /api/examinees - Menambahkan calon santri (Hanya Super User)
+// POST /api/examinees - Menambahkan calon santri (Hanya Super User) - Auto No Pendaftaran & Gender/School
 app.post('/api/examinees', authenticateToken, requireRole('SUPER_USER'), async (req, res) => {
-  const { registration_number, name, group_id } = req.body;
+  const { name, gender, school, group_id } = req.body;
 
-  if (!registration_number || !name) {
-    return res.status(400).json({ message: 'Nomor pendaftaran dan nama wajib diisi' });
+  if (!name || !gender || !school) {
+    return res.status(400).json({ message: 'Nama, jenis kelamin, dan sekolah wajib diisi' });
   }
 
   try {
-    const checkExaminee = await db.query('SELECT id FROM examinees WHERE registration_number = $1', [registration_number]);
-    if (checkExaminee.rows.length > 0) {
-      return res.status(400).json({ message: 'Nomor pendaftaran sudah terdaftar' });
+    // Generate Nomor Pendaftaran secara unik (Format: PAN-xxxxxx)
+    let registration_number = '';
+    let isUnique = false;
+    while (!isUnique) {
+      registration_number = 'PAN-' + Math.floor(100000 + Math.random() * 900000);
+      const checkExaminee = await db.query('SELECT id FROM examinees WHERE registration_number = $1', [registration_number]);
+      if (checkExaminee.rows.length === 0) {
+        isUnique = true;
+      }
     }
 
     const result = await db.query(
-      'INSERT INTO examinees (registration_number, name, group_id) VALUES ($1, $2, $3) RETURNING *',
-      [registration_number, name, group_id]
+      'INSERT INTO examinees (registration_number, name, gender, school, group_id) VALUES ($1, $2, $3, $4, $5) RETURNING *',
+      [registration_number, name, gender, school, group_id]
     );
     res.status(201).json(result.rows[0]);
   } catch (err) {
@@ -303,16 +363,16 @@ app.post('/api/examinees', authenticateToken, requireRole('SUPER_USER'), async (
 // PUT /api/examinees/:id - Mengedit data calon santri (Hanya Super User)
 app.put('/api/examinees/:id', authenticateToken, requireRole('SUPER_USER'), async (req, res) => {
   const { id } = req.params;
-  const { registration_number, name, group_id } = req.body;
+  const { name, gender, school, group_id } = req.body;
 
-  if (!registration_number || !name) {
-    return res.status(400).json({ message: 'Nomor pendaftaran dan nama wajib diisi' });
+  if (!name || !gender || !school) {
+    return res.status(400).json({ message: 'Nama, jenis kelamin, dan sekolah wajib diisi' });
   }
 
   try {
     const result = await db.query(
-      'UPDATE examinees SET registration_number = $1, name = $2, group_id = $3 WHERE id = $4 RETURNING *',
-      [registration_number, name, group_id, id]
+      'UPDATE examinees SET name = $1, gender = $2, school = $3, group_id = $4 WHERE id = $5 RETURNING *',
+      [name, gender, school, group_id, id]
     );
 
     if (result.rows.length === 0) {
@@ -369,7 +429,7 @@ app.post('/api/exams/placement', authenticateToken, async (req, res) => {
     // JIKA penguji biasa (EXAMINER), pastikan dia ditugaskan di kelompok santri tersebut
     if (req.user.role === 'EXAMINER') {
       const accessCheck = await db.query(
-        'SELECT 1 FROM user_groups WHERE user_id = $1 AND group_id = $2',
+        'SELECT 1 FROM users WHERE id = $1 AND group_id = $2',
         [req.user.id, groupId]
       );
       if (accessCheck.rows.length === 0) {
@@ -445,6 +505,7 @@ app.get('/api/exams/recap', authenticateToken, async (req, res) => {
         total: totalExaminees,
         graded: gradedExaminees,
         ungraded: totalExaminees - gradedExaminees,
+        placeholder: totalExaminees, // Placeholder value
         grades: breakdown
       },
       groups: groupsBreakdownResult.rows.map(row => ({
