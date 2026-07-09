@@ -113,9 +113,9 @@ class DataProvider extends ChangeNotifier {
 
   // --- CRUD GROUPS ---
 
-  Future<bool> createGroup(String name, String description) async {
+  Future<bool> createGroup(String name, String description, String gender) async {
     try {
-      final newGroup = await apiService.createGroup(name, description);
+      final newGroup = await apiService.createGroup(name, description, gender);
       _groups.add(newGroup);
       _groups.sort((a, b) => (a['group_name'] as String).compareTo(b['group_name'] as String));
       notifyListeners();
@@ -127,9 +127,9 @@ class DataProvider extends ChangeNotifier {
     }
   }
 
-  Future<bool> updateGroup(int id, String name, String description) async {
+  Future<bool> updateGroup(int id, String name, String description, String gender) async {
     try {
-      final updated = await apiService.updateGroup(id, name, description);
+      final updated = await apiService.updateGroup(id, name, description, gender);
       final index = _groups.indexWhere((g) => g['id'] == id);
       if (index != -1) {
         _groups[index] = updated;
@@ -159,9 +159,9 @@ class DataProvider extends ChangeNotifier {
 
   // --- CRUD EXAMINEES ---
 
-  Future<bool> createExaminee(String name, String gender, String school, int? groupId) async {
+  Future<bool> createExaminee(String regNum, String name, String gender, String school, int groupId) async {
     try {
-      await apiService.createExaminee(name, gender, school, groupId);
+      await apiService.createExaminee(regNum, name, gender, school, groupId);
       await fetchExaminees();
       await fetchRecap();
       return true;

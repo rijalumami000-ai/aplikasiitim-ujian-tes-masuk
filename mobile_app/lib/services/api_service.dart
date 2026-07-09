@@ -194,12 +194,16 @@ class ApiService {
   }
 
   // Super User: Tambah Kelompok
-  Future<Map<String, dynamic>> createGroup(String groupName, String description) async {
+  Future<Map<String, dynamic>> createGroup(String groupName, String description, String gender) async {
     try {
       final response = await http.post(
         Uri.parse('$_baseUrl/api/groups'),
         headers: _getHeaders(),
-        body: jsonEncode({'group_name': groupName, 'description': description}),
+        body: jsonEncode({
+          'group_name': groupName,
+          'description': description,
+          'group_gender': gender
+        }),
       );
       return _handleResponse(response);
     } catch (e) {
@@ -208,12 +212,16 @@ class ApiService {
   }
 
   // Super User: Edit Kelompok
-  Future<Map<String, dynamic>> updateGroup(int id, String groupName, String description) async {
+  Future<Map<String, dynamic>> updateGroup(int id, String groupName, String description, String gender) async {
     try {
       final response = await http.put(
         Uri.parse('$_baseUrl/api/groups/$id'),
         headers: _getHeaders(),
-        body: jsonEncode({'group_name': groupName, 'description': description}),
+        body: jsonEncode({
+          'group_name': groupName,
+          'description': description,
+          'group_gender': gender
+        }),
       );
       return _handleResponse(response);
     } catch (e) {
@@ -249,13 +257,14 @@ class ApiService {
     }
   }
 
-  // Super User: Tambah Calon Santri
-  Future<Map<String, dynamic>> createExaminee(String name, String gender, String school, int? groupId) async {
+  // Super User: Tambah Calon Santri (Dari PSB)
+  Future<Map<String, dynamic>> createExaminee(String regNum, String name, String gender, String school, int groupId) async {
     try {
       final response = await http.post(
         Uri.parse('$_baseUrl/api/examinees'),
         headers: _getHeaders(),
         body: jsonEncode({
+          'registration_number': regNum,
           'name': name,
           'gender': gender,
           'school': school,
@@ -263,6 +272,20 @@ class ApiService {
         }),
       );
       return _handleResponse(response);
+    } catch (e) {
+      rethrow;
+    }
+  }
+
+  // Super User: Ambil Calon Santri PSB yang Belum Terdaftar
+  Future<List<dynamic>> getAvailableCandidates(String? gender) async {
+    try {
+      final queryParam = gender != null ? '?gender=$gender' : '';
+      final response = await http.get(
+        Uri.parse('$_baseUrl/api/psb/available-candidates$queryParam'),
+        headers: _getHeaders(),
+      );
+      return _handleResponse(response) as List<dynamic>;
     } catch (e) {
       rethrow;
     }

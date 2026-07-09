@@ -14,6 +14,7 @@ CREATE TABLE IF NOT EXISTS groups (
     id SERIAL PRIMARY KEY,
     group_name VARCHAR(100) UNIQUE NOT NULL,
     description TEXT,
+    group_gender VARCHAR(10) DEFAULT 'PUTRA',
     created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
 );
 
