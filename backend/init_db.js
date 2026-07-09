@@ -77,20 +77,19 @@ const initSchema = async () => {
     `);
     console.log('Tabel "exam_results" berhasil divalidasi/dibuat.');
 
-    // Cek apakah sudah ada admin
-    const adminCheck = await client.query("SELECT * FROM users WHERE role = 'SUPER_USER'");
+    const adminCheck = await client.query("SELECT * FROM users WHERE username = 'alhamidcintamulya'");
     if (adminCheck.rows.length === 0) {
-      console.log('Tidak ditemukan akun admin. Membuat akun admin default...');
-      const hashedPassword = await bcrypt.hash('admin123', 10);
+      console.log('Tidak ditemukan akun super user alhamidcintamulya. Membuat akun...');
+      const hashedPassword = await bcrypt.hash('alhamidku123', 10);
       await client.query(
         "INSERT INTO users (username, password, role) VALUES ($1, $2, $3)",
-        ['admin', hashedPassword, 'SUPER_USER']
+        ['alhamidcintamulya', hashedPassword, 'SUPER_USER']
       );
-      console.log('Akun admin default berhasil dibuat:');
-      console.log('Username: admin');
-      console.log('Password: admin123');
+      console.log('Akun super user default berhasil dibuat:');
+      console.log('Username: alhamidcintamulya');
+      console.log('Password: alhamidku123');
     } else {
-      console.log('Akun administrator sudah terdaftar.');
+      console.log('Akun super user alhamidcintamulya sudah terdaftar.');
     }
 
     console.log('Inisialisasi skema database selesai dengan sukses!');
