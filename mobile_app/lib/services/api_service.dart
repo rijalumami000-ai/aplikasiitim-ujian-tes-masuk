@@ -10,6 +10,8 @@ class ApiService {
   String _baseUrl = _defaultUrl;
   String? _token;
 
+  String? get token => _token;
+
   // Inisialisasi API Service (Selalu gunakan IP VPS)
   Future<void> init() async {
     final prefs = await SharedPreferences.getInstance();
@@ -76,7 +78,7 @@ class ApiService {
         Uri.parse('$_baseUrl/api/auth/login'),
         headers: _getHeaders(),
         body: jsonEncode({'username': username, 'password': password}),
-      );
+      ).timeout(const Duration(seconds: 10));
       final data = _handleResponse(response);
       await setToken(data['token']);
       return data;
@@ -91,7 +93,7 @@ class ApiService {
       final response = await http.get(
         Uri.parse('$_baseUrl/api/auth/me'),
         headers: _getHeaders(),
-      );
+      ).timeout(const Duration(seconds: 7));
       return _handleResponse(response);
     } catch (e) {
       rethrow;

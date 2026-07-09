@@ -30,6 +30,12 @@ class AuthProvider extends ChangeNotifier {
     notifyListeners();
     try {
       await apiService.init();
+      if (apiService.token == null) {
+        _user = null;
+        _isLoading = false;
+        notifyListeners();
+        return;
+      }
       final profile = await apiService.getProfile();
       _user = profile;
       _error = null;
