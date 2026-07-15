@@ -49,7 +49,7 @@ class _ExamineeChecklistScreenState extends State<ExamineeChecklistScreen> {
       case 'SP':
         return PremiumColors.spColor;
       default:
-        return PremiumColors.textMutedLight;
+        return const Color(0xFF64748B);
     }
   }
 
@@ -78,7 +78,7 @@ class _ExamineeChecklistScreenState extends State<ExamineeChecklistScreen> {
           children: [
             Text(
               widget.groupName,
-              style: const TextStyle(fontSize: 18, fontWeight: FontWeight.bold, color: PremiumColors.textMain),
+              style: TextStyle(fontSize: 18, fontWeight: FontWeight.bold, color: PremiumColors.textMain(context)),
             ),
             Text(
               widget.isReadOnly ? 'Mode Lihat Saja' : 'Ceklis Penempatan Kelas',
@@ -109,7 +109,7 @@ class _ExamineeChecklistScreenState extends State<ExamineeChecklistScreen> {
                   prefixIcon: const Icon(Icons.search, color: PremiumColors.primaryLight),
                   suffixIcon: _searchQuery.isNotEmpty
                       ? IconButton(
-                          icon: const Icon(Icons.clear, color: PremiumColors.textMuted),
+                          icon: Icon(Icons.clear, color: PremiumColors.textMuted(context)),
                           onPressed: () {
                             _searchController.clear();
                             setState(() {
@@ -124,27 +124,38 @@ class _ExamineeChecklistScreenState extends State<ExamineeChecklistScreen> {
 
               // Daftar Calon Santri
               Expanded(
-                child: dataProvider.isLoading
-                    ? const Center(
-                        child: CircularProgressIndicator(color: PremiumColors.primaryLight),
-                      )
-                    : filteredExaminees.isEmpty
-                        ? Center(
-                            child: Column(
-                              mainAxisAlignment: MainAxisAlignment.center,
-                              children: [
-                                Icon(Icons.people_outline, size: 64, color: PremiumColors.textMuted.withOpacity(0.5)),
-                                const SizedBox(height: 16),
-                                Text(
-                                  _searchQuery.isNotEmpty 
-                                      ? 'Tidak ditemukan santri "${_searchQuery}"' 
-                                      : 'Kelompok ini belum memiliki daftar santri.',
-                                  style: const TextStyle(color: PremiumColors.textMuted),
+                child: RefreshIndicator(
+                  onRefresh: () async {
+                    await dataProvider.fetchExaminees();
+                  },
+                  color: PremiumColors.primaryLight,
+                  backgroundColor: PremiumColors.bgDarkSecondary,
+                  child: dataProvider.isLoading
+                      ? const Center(
+                          child: CircularProgressIndicator(color: PremiumColors.primaryLight),
+                        )
+                      : filteredExaminees.isEmpty
+                          ? SingleChildScrollView(
+                              physics: const AlwaysScrollableScrollPhysics(),
+                              child: Container(
+                                height: 350,
+                                alignment: Alignment.center,
+                                child: Column(
+                                  mainAxisAlignment: MainAxisAlignment.center,
+                                  children: [
+                                    Icon(Icons.people_outline, size: 64, color: PremiumColors.textMuted(context).withOpacity(0.5)),
+                                    const SizedBox(height: 16),
+                                    Text(
+                                      _searchQuery.isNotEmpty 
+                                          ? 'Tidak ditemukan santri "${_searchQuery}"' 
+                                          : 'Kelompok ini belum memiliki daftar santri.',
+                                      style: TextStyle(color: PremiumColors.textMuted(context)),
+                                    ),
+                                  ],
                                 ),
-                              ],
-                            ),
-                          )
-                        : ListView.builder(
+                              ),
+                            )
+                          : ListView.builder(
                             itemCount: filteredExaminees.length,
                             itemBuilder: (context, index) {
                               final examinee = filteredExaminees[index];
@@ -174,10 +185,10 @@ class _ExamineeChecklistScreenState extends State<ExamineeChecklistScreen> {
                                             children: [
                                               Text(
                                                 name,
-                                                style: const TextStyle(
+                                                style: TextStyle(
                                                   fontSize: 16, 
                                                   fontWeight: FontWeight.bold, 
-                                                  color: PremiumColors.textMain
+                                                  color: PremiumColors.textMain(context)
                                                 ),
                                               ),
                                               const SizedBox(height: 4),
@@ -185,7 +196,7 @@ class _ExamineeChecklistScreenState extends State<ExamineeChecklistScreen> {
                                                 children: [
                                                   Text(
                                                     'No. Daftar: $regNum',
-                                                    style: const TextStyle(fontSize: 12, color: PremiumColors.textMuted),
+                                                    style: TextStyle(fontSize: 12, color: PremiumColors.textMuted(context)),
                                                   ),
                                                   const SizedBox(width: 8),
                                                   Container(
@@ -252,9 +263,9 @@ class _ExamineeChecklistScreenState extends State<ExamineeChecklistScreen> {
                                       Row(
                                         mainAxisAlignment: MainAxisAlignment.spaceBetween,
                                         children: [
-                                          const Text(
+                                          Text(
                                             'Status Penempatan:',
-                                            style: TextStyle(fontSize: 12, color: PremiumColors.textMuted),
+                                            style: TextStyle(fontSize: 12, color: PremiumColors.textMuted(context)),
                                           ),
                                           Container(
                                             padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 6),
@@ -270,7 +281,7 @@ class _ExamineeChecklistScreenState extends State<ExamineeChecklistScreen> {
                                               style: TextStyle(
                                                 fontSize: 13,
                                                 fontWeight: FontWeight.bold,
-                                                color: placement != null ? _getPlacementColor(placement) : PremiumColors.textMuted,
+                                                color: placement != null ? _getPlacementColor(placement) : PremiumColors.textMuted(context),
                                               ),
                                             ),
                                           ),
@@ -280,11 +291,11 @@ class _ExamineeChecklistScreenState extends State<ExamineeChecklistScreen> {
                                       // Tampilan Mode Edit (Ceklis Interaktif)
                                       Row(
                                         children: [
-                                          _buildGradeToggleButton('SIFIR', placement, id, examinerName, dataProvider),
+                                          _buildGradeToggleButton('SIFIR', placement, id, name, examinerName, dataProvider),
                                           const SizedBox(width: 10),
-                                          _buildGradeToggleButton('SATU', placement, id, examinerName, dataProvider),
+                                          _buildGradeToggleButton('SATU', placement, id, name, examinerName, dataProvider),
                                           const SizedBox(width: 10),
-                                          _buildGradeToggleButton('SP', placement, id, examinerName, dataProvider),
+                                          _buildGradeToggleButton('SP', placement, id, name, examinerName, dataProvider),
                                         ],
                                       ),
                                   ],
@@ -292,6 +303,7 @@ class _ExamineeChecklistScreenState extends State<ExamineeChecklistScreen> {
                               );
                             },
                           ),
+                ),
               ),
             ],
           ),
@@ -305,6 +317,7 @@ class _ExamineeChecklistScreenState extends State<ExamineeChecklistScreen> {
     String targetGrade,
     String? currentGrade,
     int examineeId,
+    String examineeName,
     String examinerName,
     DataProvider dataProvider,
   ) {
@@ -325,10 +338,29 @@ class _ExamineeChecklistScreenState extends State<ExamineeChecklistScreen> {
 
     return Expanded(
       child: InkWell(
-        onTap: () {
+        onTap: () async {
           // Jika diklik kelas yang sama, hapus penempatan (null)
           final newGrade = isSelected ? null : targetGrade;
-          dataProvider.submitPlacement(examineeId, newGrade, examinerName);
+          await dataProvider.submitPlacement(examineeId, newGrade, examinerName);
+
+          if (mounted) {
+            final message = newGrade != null
+                ? 'Berhasil menempatkan $examineeName ke kelas $newGrade'
+                : 'Berhasil menghapus penempatan kelas untuk $examineeName';
+            ScaffoldMessenger.of(context).clearSnackBars();
+            ScaffoldMessenger.of(context).showSnackBar(
+              SnackBar(
+                content: Text(
+                  message,
+                  style: const TextStyle(fontWeight: FontWeight.bold, color: Colors.white),
+                ),
+                backgroundColor: PremiumColors.accent,
+                duration: const Duration(seconds: 2),
+                behavior: SnackBarBehavior.floating,
+                shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(10)),
+              ),
+            );
+          }
         },
         borderRadius: BorderRadius.circular(12),
         child: Container(
@@ -337,7 +369,7 @@ class _ExamineeChecklistScreenState extends State<ExamineeChecklistScreen> {
             color: isSelected ? activeColor.withOpacity(0.2) : Colors.transparent,
             borderRadius: BorderRadius.circular(12),
             border: Border.all(
-              color: isSelected ? activeColor : PremiumColors.cardBorder,
+              color: isSelected ? activeColor : (Theme.of(context).brightness == Brightness.light ? const Color(0xFFE2E8F0) : PremiumColors.cardBorder),
               width: isSelected ? 1.5 : 1,
             ),
             boxShadow: isSelected
@@ -356,7 +388,7 @@ class _ExamineeChecklistScreenState extends State<ExamineeChecklistScreen> {
             style: TextStyle(
               fontSize: 13,
               fontWeight: FontWeight.bold,
-              color: isSelected ? activeColor : PremiumColors.textMuted,
+              color: isSelected ? activeColor : PremiumColors.textMuted(context),
             ),
           ),
         ),

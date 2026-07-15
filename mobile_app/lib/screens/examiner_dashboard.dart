@@ -53,17 +53,25 @@ class _ExaminerDashboardState extends State<ExaminerDashboard> {
               children: [
                 Text(
                   username,
-                  style: const TextStyle(fontSize: 16, fontWeight: FontWeight.bold, color: PremiumColors.textMain),
+                  style: TextStyle(fontSize: 16, fontWeight: FontWeight.bold, color: PremiumColors.textMain(context)),
                 ),
-                const Text(
+                Text(
                   'Tim Penguji Ujian',
-                  style: TextStyle(fontSize: 12, color: PremiumColors.textMuted),
+                  style: TextStyle(fontSize: 12, color: PremiumColors.textMuted(context)),
                 ),
               ],
             ),
           ],
         ),
         actions: [
+          IconButton(
+            icon: Icon(
+              authProvider.themeMode == ThemeMode.dark ? Icons.light_mode_outlined : Icons.dark_mode_outlined,
+              color: PremiumColors.primaryLight,
+            ),
+            tooltip: 'Ganti Tema',
+            onPressed: () => authProvider.toggleTheme(),
+          ),
           // Navigasi ke Rekap Hasil Penempatan Kelas
           IconButton(
             icon: const Icon(Icons.bar_chart, color: PremiumColors.primaryLight, size: 28),
@@ -108,14 +116,14 @@ class _ExaminerDashboardState extends State<ExaminerDashboard> {
                         child: Column(
                           crossAxisAlignment: CrossAxisAlignment.start,
                           children: [
-                            const Text(
+                            Text(
                               'Kelompok Pengujian',
-                              style: TextStyle(fontWeight: FontWeight.bold, fontSize: 15, color: PremiumColors.textMain),
+                              style: TextStyle(fontWeight: FontWeight.bold, fontSize: 15, color: PremiumColors.textMain(context)),
                             ),
                             const SizedBox(height: 4),
                             Text(
                               'Anda dapat menceklis santri pada kelompok bertanda "Aktif". Kelompok lain bersifat "Lihat Saja".',
-                              style: TextStyle(fontSize: 12, color: PremiumColors.textMuted.withOpacity(0.85)),
+                              style: TextStyle(fontSize: 12, color: PremiumColors.textMuted(context).withOpacity(0.85)),
                             ),
                           ],
                         ),
@@ -124,9 +132,9 @@ class _ExaminerDashboardState extends State<ExaminerDashboard> {
                   ),
                 ),
                 const SizedBox(height: 28),
-                const Text(
+                Text(
                   'Daftar Kelompok',
-                  style: TextStyle(fontSize: 18, fontWeight: FontWeight.bold, color: PremiumColors.textMain),
+                  style: TextStyle(fontSize: 18, fontWeight: FontWeight.bold, color: PremiumColors.textMain(context)),
                 ),
                 const SizedBox(height: 16),
                 
@@ -159,10 +167,10 @@ class _ExaminerDashboardState extends State<ExaminerDashboard> {
                               ),
                             )
                           : dataProvider.groups.isEmpty
-                              ? const Center(
+                              ? Center(
                                   child: Text(
                                     'Belum ada kelompok yang terdaftar.',
-                                    style: TextStyle(color: PremiumColors.textMuted),
+                                    style: TextStyle(color: PremiumColors.textMuted(context)),
                                   ),
                                 )
                               : GridView.builder(
@@ -234,7 +242,7 @@ class _ExaminerDashboardState extends State<ExaminerDashboard> {
                                                       isAssigned ? Icons.assignment : Icons.lock_outline,
                                                       color: isAssigned 
                                                           ? PremiumColors.primaryLight 
-                                                          : PremiumColors.textMutedLight,
+                                                          : PremiumColors.textMutedLight(context),
                                                       size: 24,
                                                     ),
                                                     Container(
@@ -250,7 +258,7 @@ class _ExaminerDashboardState extends State<ExaminerDashboard> {
                                                         style: TextStyle(
                                                           fontSize: 10, 
                                                           fontWeight: FontWeight.bold,
-                                                          color: isAssigned ? PremiumColors.accent : PremiumColors.textMuted
+                                                          color: isAssigned ? PremiumColors.accent : PremiumColors.textMuted(context)
                                                         ),
                                                       ),
                                                     ),
@@ -263,10 +271,10 @@ class _ExaminerDashboardState extends State<ExaminerDashboard> {
                                                   children: [
                                                     Text(
                                                       groupName,
-                                                      style: const TextStyle(
+                                                      style: TextStyle(
                                                         fontSize: 16, 
                                                         fontWeight: FontWeight.bold, 
-                                                        color: PremiumColors.textMain
+                                                        color: PremiumColors.textMain(context)
                                                       ),
                                                       maxLines: 1,
                                                       overflow: TextOverflow.ellipsis,
@@ -274,9 +282,9 @@ class _ExaminerDashboardState extends State<ExaminerDashboard> {
                                                     const SizedBox(height: 4),
                                                     Text(
                                                       description ?? 'Tanpa deskripsi',
-                                                      style: const TextStyle(
+                                                      style: TextStyle(
                                                         fontSize: 12, 
-                                                        color: PremiumColors.textMuted
+                                                        color: PremiumColors.textMuted(context)
                                                       ),
                                                       maxLines: 2,
                                                       overflow: TextOverflow.ellipsis,

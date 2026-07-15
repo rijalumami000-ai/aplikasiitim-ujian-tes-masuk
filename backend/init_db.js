@@ -59,7 +59,7 @@ const initSchema = async () => {
           id SERIAL PRIMARY KEY,
           registration_number VARCHAR(50) UNIQUE NOT NULL,
           name VARCHAR(100) NOT NULL,
-          group_id INT REFERENCES groups(id) ON DELETE SET NULL,
+          group_id INT REFERENCES groups(id) ON DELETE CASCADE,
           created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
       );
     `);

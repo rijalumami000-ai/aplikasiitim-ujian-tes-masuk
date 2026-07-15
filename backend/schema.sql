@@ -35,7 +35,7 @@ CREATE TABLE IF NOT EXISTS examinees (
     name VARCHAR(100) NOT NULL,
     gender VARCHAR(10) NOT NULL, -- 'PUTRA' atau 'PUTRI'
     school VARCHAR(10) NOT NULL, -- 'MTS' atau 'ALIYAH'
-    group_id INT REFERENCES groups(id) ON DELETE SET NULL,
+    group_id INT REFERENCES groups(id) ON DELETE CASCADE,
     created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
 );
 

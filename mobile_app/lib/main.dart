@@ -27,6 +27,8 @@ void main() async {
             final provider = previous ?? DataProvider(apiService);
             if (!auth.isAuthenticated) {
               provider.clear();
+            } else {
+              provider.startSyncTimer(auth.isSuperUser);
             }
             return provider;
           },
@@ -42,10 +44,14 @@ class MyApp extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
+    final authProvider = Provider.of<AuthProvider>(context);
+
     return MaterialApp(
       title: 'Panitia Tes Masuk',
       debugShowCheckedModeBanner: false,
-      theme: PremiumTheme.darkTheme,
+      theme: PremiumTheme.lightTheme,
+      darkTheme: PremiumTheme.darkTheme,
+      themeMode: authProvider.themeMode,
       home: const AuthWrapper(),
       routes: {
         '/login': (context) => const LoginScreen(),
@@ -103,19 +109,19 @@ class _AuthWrapperState extends State<AuthWrapper> {
                   ),
                 ),
                 const SizedBox(height: 32),
-                const Text(
+                Text(
                   'Panitia Tes Masuk',
                   style: TextStyle(
                     fontSize: 20, 
                     fontWeight: FontWeight.bold, 
-                    color: PremiumColors.textMain,
+                    color: PremiumColors.textMain(context),
                     letterSpacing: 0.5,
                   ),
                 ),
                 const SizedBox(height: 6),
-                const Text(
+                Text(
                   'Memuat data sesi pengujian...',
-                  style: TextStyle(fontSize: 14, color: PremiumColors.textMuted),
+                  style: TextStyle(fontSize: 14, color: PremiumColors.textMuted(context)),
                 ),
               ],
             ),

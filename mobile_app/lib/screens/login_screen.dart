@@ -83,21 +83,21 @@ class _LoginScreenState extends State<LoginScreen> {
                         ),
                       ),
                       const SizedBox(height: 24),
-                      const Text(
+                      Text(
                         'Panitia Tes Masuk',
                         style: TextStyle(
                           fontSize: 28,
                           fontWeight: FontWeight.bold,
-                          color: PremiumColors.textMain,
+                          color: PremiumColors.textMain(context),
                           letterSpacing: 0.5,
                         ),
                       ),
                       const SizedBox(height: 6),
-                      const Text(
+                      Text(
                         'Pondok Pesantren Al-Hamid',
                         style: TextStyle(
                           fontSize: 16,
-                          color: PremiumColors.textMuted,
+                          color: PremiumColors.textMuted(context),
                           fontWeight: FontWeight.w500,
                         ),
                       ),
@@ -110,12 +110,12 @@ class _LoginScreenState extends State<LoginScreen> {
                           child: Column(
                             crossAxisAlignment: CrossAxisAlignment.start,
                             children: [
-                              const Text(
+                              Text(
                                 'Masuk Aplikasi',
                                 style: TextStyle(
                                   fontSize: 18,
                                   fontWeight: FontWeight.bold,
-                                  color: PremiumColors.textMain,
+                                  color: PremiumColors.textMain(context),
                                 ),
                               ),
                               const SizedBox(height: 20),
@@ -148,7 +148,7 @@ class _LoginScreenState extends State<LoginScreen> {
                                   suffixIcon: IconButton(
                                     icon: Icon(
                                       _obscurePassword ? Icons.visibility_off : Icons.visibility,
-                                      color: PremiumColors.textMuted,
+                                      color: PremiumColors.textMuted(context),
                                     ),
                                     onPressed: () {
                                       setState(() {

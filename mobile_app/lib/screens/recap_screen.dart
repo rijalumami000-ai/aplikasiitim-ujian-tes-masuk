@@ -1,6 +1,7 @@
 import 'package:flutter/material.dart';
 import 'package:provider/provider.dart';
 import '../providers/data_provider.dart';
+import '../services/pdf_generator.dart';
 import '../theme/premium_theme.dart';
 
 class RecapScreen extends StatefulWidget {
@@ -14,6 +15,21 @@ class _RecapScreenState extends State<RecapScreen> {
   final _searchController = TextEditingController();
   String _searchQuery = '';
   String _filterGrade = 'ALL'; // ALL, SIFIR, SATU, SP, UNGRADED
+
+  Future<void> _downloadPlacementsPdf(DataProvider dataProvider) async {
+    try {
+      await PdfGenerator.generateAndPreviewPlacementsPdf(
+        groups: dataProvider.groups,
+        examinees: dataProvider.examinees,
+      );
+    } catch (e) {
+      if (mounted) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          SnackBar(content: Text('Terjadi kesalahan saat membuat PDF: $e')),
+        );
+      }
+    }
+  }
 
   @override
   void initState() {
@@ -46,7 +62,7 @@ class _RecapScreenState extends State<RecapScreen> {
       case 'SP':
         return PremiumColors.spColor;
       default:
-        return PremiumColors.textMutedLight;
+        return const Color(0xFF64748B);
     }
   }
 
@@ -83,19 +99,27 @@ class _RecapScreenState extends State<RecapScreen> {
       appBar: AppBar(
         backgroundColor: Colors.transparent,
         elevation: 0,
-        title: const Column(
+        title: Column(
           crossAxisAlignment: CrossAxisAlignment.start,
           children: [
             Text(
               'Rekapitulasi Penempatan',
-              style: TextStyle(fontSize: 18, fontWeight: FontWeight.bold, color: PremiumColors.textMain),
+              style: TextStyle(fontSize: 18, fontWeight: FontWeight.bold, color: PremiumColors.textMain(context)),
             ),
-            Text(
+            const Text(
               'Statistik Hasil Ujian Santri',
               style: TextStyle(fontSize: 12, color: PremiumColors.primaryLight),
             ),
           ],
         ),
+        actions: [
+          IconButton(
+            icon: const Icon(Icons.download_for_offline, color: PremiumColors.accent, size: 28),
+            tooltip: 'Cetak PDF Rekap Penempatan',
+            onPressed: () => _downloadPlacementsPdf(dataProvider),
+          ),
+          const SizedBox(width: 16),
+        ],
       ),
       body: PremiumBackground(
         child: RefreshIndicator(
@@ -124,9 +148,9 @@ class _RecapScreenState extends State<RecapScreen> {
                   const SizedBox(height: 24),
 
                   // 2. Bar Penempatan Kelas (Visual Distribution)
-                  const Text(
+                  Text(
                     'Distribusi Kelulusan Kelas',
-                    style: TextStyle(fontSize: 16, fontWeight: FontWeight.bold, color: PremiumColors.textMain),
+                    style: TextStyle(fontSize: 16, fontWeight: FontWeight.bold, color: PremiumColors.textMain(context)),
                   ),
                   const SizedBox(height: 16),
                   _buildDistributionBar(summary['grades']),
@@ -135,9 +159,9 @@ class _RecapScreenState extends State<RecapScreen> {
 
                 // 3. Progres Kelompok
                 if (groupsBreakdown.isNotEmpty) ...[
-                  const Text(
+                  Text(
                     'Progres Pengujian per Kelompok',
-                    style: TextStyle(fontSize: 16, fontWeight: FontWeight.bold, color: PremiumColors.textMain),
+                    style: TextStyle(fontSize: 16, fontWeight: FontWeight.bold, color: PremiumColors.textMain(context)),
                   ),
                   const SizedBox(height: 16),
                   ListView.builder(
@@ -164,7 +188,7 @@ class _RecapScreenState extends State<RecapScreen> {
                                 ),
                                 Text(
                                   '$graded/$total Santri ($progress%)',
-                                  style: const TextStyle(fontSize: 12, color: PremiumColors.textMuted),
+                                  style: TextStyle(fontSize: 12, color: PremiumColors.textMuted(context)),
                                 ),
                               ],
                             ),
@@ -190,9 +214,9 @@ class _RecapScreenState extends State<RecapScreen> {
                 Row(
                   mainAxisAlignment: MainAxisAlignment.spaceBetween,
                   children: [
-                    const Text(
+                    Text(
                       'Daftar Hasil Santri',
-                      style: TextStyle(fontSize: 16, fontWeight: FontWeight.bold, color: PremiumColors.textMain),
+                      style: TextStyle(fontSize: 16, fontWeight: FontWeight.bold, color: PremiumColors.textMain(context)),
                     ),
                     _buildGradeFilterDropdown(),
                   ],
@@ -211,10 +235,10 @@ class _RecapScreenState extends State<RecapScreen> {
 
                 // List Santri hasil filter
                 filteredExaminees.isEmpty
-                    ? const Center(
+                    ? Center(
                         child: Padding(
-                          padding: EdgeInsets.symmetric(vertical: 40.0),
-                          child: Text('Tidak ada data santri yang cocok.', style: TextStyle(color: PremiumColors.textMuted)),
+                          padding: const EdgeInsets.symmetric(vertical: 40.0),
+                          child: Text('Tidak ada data santri yang cocok.', style: TextStyle(color: PremiumColors.textMuted(context))),
                         ),
                       )
                     : ListView.builder(
@@ -243,13 +267,13 @@ class _RecapScreenState extends State<RecapScreen> {
                                       const SizedBox(height: 4),
                                       Text(
                                         'No: ${e['registration_number']} | Kelompok: ${e['group_name'] ?? "-"}',
-                                        style: const TextStyle(color: PremiumColors.textMuted, fontSize: 11),
+                                        style: TextStyle(color: PremiumColors.textMuted(context), fontSize: 11),
                                       ),
                                       if (placement != null) ...[
                                         const SizedBox(height: 4),
                                         Text(
                                           'Diuji oleh: ${e['examiner_name'] ?? "-"}',
-                                          style: const TextStyle(color: PremiumColors.textMutedLight, fontSize: 10),
+                                          style: TextStyle(color: PremiumColors.textMuted(context), fontSize: 10),
                                         )
                                       ]
                                     ],
@@ -271,7 +295,7 @@ class _RecapScreenState extends State<RecapScreen> {
                                     style: TextStyle(
                                       fontSize: 11, 
                                       fontWeight: FontWeight.bold,
-                                      color: placement != null ? _getGradeColor(placement) : PremiumColors.textMuted
+                                      color: placement != null ? _getGradeColor(placement) : PremiumColors.textMuted(context)
                                     ),
                                   ),
                                 )
@@ -306,12 +330,12 @@ class _RecapScreenState extends State<RecapScreen> {
             const SizedBox(height: 12),
             Text(
               value,
-              style: const TextStyle(fontSize: 22, fontWeight: FontWeight.bold, color: PremiumColors.textMain),
+              style: TextStyle(fontSize: 22, fontWeight: FontWeight.bold, color: PremiumColors.textMain(context)),
             ),
             const SizedBox(height: 4),
             Text(
               title,
-              style: const TextStyle(fontSize: 10, color: PremiumColors.textMuted),
+              style: TextStyle(fontSize: 10, color: PremiumColors.textMuted(context)),
               maxLines: 1,
               overflow: TextOverflow.ellipsis,
             ),
@@ -358,7 +382,7 @@ class _RecapScreenState extends State<RecapScreen> {
                 borderRadius: BorderRadius.circular(8),
               ),
               alignment: Alignment.center,
-              child: const Text('Belum ada data nilai', style: TextStyle(fontSize: 10, color: PremiumColors.textMuted)),
+              child: Text('Belum ada data nilai', style: TextStyle(fontSize: 10, color: PremiumColors.textMuted(context))),
             )
           else
             ClipRRect(
@@ -410,13 +434,13 @@ class _RecapScreenState extends State<RecapScreen> {
               decoration: BoxDecoration(shape: BoxShape.circle, color: color),
             ),
             const SizedBox(width: 6),
-            Text(label, style: const TextStyle(fontSize: 12, fontWeight: FontWeight.bold, color: PremiumColors.textMain)),
+            Text(label, style: TextStyle(fontSize: 12, fontWeight: FontWeight.bold, color: PremiumColors.textMain(context))),
           ],
         ),
         const SizedBox(height: 4),
         Text(
           '$count Santri (${(percentage * 100).toStringAsFixed(0)}%)',
-          style: const TextStyle(fontSize: 11, color: PremiumColors.textMuted),
+          style: TextStyle(fontSize: 11, color: PremiumColors.textMuted(context)),
         )
       ],
     );
@@ -424,18 +448,19 @@ class _RecapScreenState extends State<RecapScreen> {
 
   // Widget Dropdown Filter Kelulusan Kelas
   Widget _buildGradeFilterDropdown() {
+    final isLight = Theme.of(context).brightness == Brightness.light;
     return Container(
       padding: const EdgeInsets.symmetric(horizontal: 10),
       decoration: BoxDecoration(
-        color: PremiumColors.bgDarkSecondary,
+        color: isLight ? Colors.white : PremiumColors.bgDarkSecondary,
         borderRadius: BorderRadius.circular(10),
-        border: Border.all(color: PremiumColors.cardBorder),
+        border: Border.all(color: isLight ? const Color(0xFFE2E8F0) : PremiumColors.cardBorder),
       ),
       child: DropdownButton<String>(
         value: _filterGrade,
         underline: const SizedBox(),
-        dropdownColor: PremiumColors.bgDarkSecondary,
-        style: const TextStyle(fontSize: 12, color: PremiumColors.textMain, fontWeight: FontWeight.bold),
+        dropdownColor: isLight ? Colors.white : PremiumColors.bgDarkSecondary,
+        style: TextStyle(fontSize: 12, color: PremiumColors.textMain(context), fontWeight: FontWeight.bold),
         items: const [
           DropdownMenuItem(value: 'ALL', child: Text('Semua')),
           DropdownMenuItem(value: 'SIFIR', child: Text('SIFIR')),

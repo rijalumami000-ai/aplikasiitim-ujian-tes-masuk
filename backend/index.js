@@ -5,6 +5,8 @@ const jwt = require('jsonwebtoken');
 const { Pool } = require('pg');
 const db = require('./db');
 const { authenticateToken, requireRole } = require('./middleware/auth');
+const PDFDocument = require('pdfkit');
+const XLSX = require('xlsx');
 
 const app = express();
 const PORT = process.env.PORT || 3002;
@@ -105,8 +107,8 @@ app.post('/api/auth/register', authenticateToken, requireRole('SUPER_USER'), asy
 
     const hashedPassword = await bcrypt.hash(password, 10);
     const result = await db.query(
-      'INSERT INTO users (username, password, role, group_id) VALUES ($1, $2, $3, $4) RETURNING id, username, role, group_id',
-      [username, hashedPassword, role, role === 'SUPER_USER' ? null : group_id]
+      'INSERT INTO users (username, password, role, group_id, plain_password) VALUES ($1, $2, $3, $4, $5) RETURNING id, username, role, group_id',
+      [username, hashedPassword, role, role === 'SUPER_USER' ? null : group_id, password]
     );
 
     res.status(201).json({
@@ -126,7 +128,7 @@ app.post('/api/auth/register', authenticateToken, requireRole('SUPER_USER'), asy
 app.get('/api/users', authenticateToken, requireRole('SUPER_USER'), async (req, res) => {
   try {
     const usersResult = await db.query(`
-      SELECT u.id, u.username, u.role, u.group_id,
+      SELECT u.id, u.username, u.role, u.group_id, u.plain_password,
              g.group_name as group_name,
              COALESCE(
                CASE WHEN g.id IS NOT NULL THEN json_build_array(json_build_object('id', g.id, 'name', g.group_name))
@@ -163,8 +165,8 @@ app.put('/api/users/:id', authenticateToken, requireRole('SUPER_USER'), async (r
 
     if (password && password.trim().length > 0) {
       const hashedPassword = await bcrypt.hash(password, 10);
-      query += ', password = $4 WHERE id = $5 RETURNING id, username, role, group_id';
-      params.push(hashedPassword, id);
+      query += ', password = $4, plain_password = $5 WHERE id = $6 RETURNING id, username, role, group_id';
+      params.push(hashedPassword, password, id);
     } else {
       query += ' WHERE id = $4 RETURNING id, username, role, group_id';
       params.push(id);
@@ -298,6 +300,10 @@ app.delete('/api/groups/:id', authenticateToken, requireRole('SUPER_USER'), asyn
   const { id } = req.params;
 
   try {
+    // Hapus calon santri di kelompok ini terlebih dahulu agar data terhapus sepenuhnya
+    // dan nama mereka bisa muncul kembali di daftar calon santri PSB untuk didaftarkan ulang
+    await db.query('DELETE FROM examinees WHERE group_id = $1', [id]);
+
     const result = await db.query('DELETE FROM groups WHERE id = $1 RETURNING *', [id]);
     if (result.rows.length === 0) {
       return res.status(404).json({ message: 'Kelompok tidak ditemukan' });
@@ -575,7 +581,330 @@ app.get('/api/exams/recap', authenticateToken, async (req, res) => {
   }
 });
 
-// Jalankan Server
-app.listen(PORT, () => {
-  console.log(`Server Express berjalan di port ${PORT}`);
+
+// --- ENDPOINT DOWNLOAD FILE (PDF & EXCEL) ---
+
+// GET /api/download/pdf/group/:id - Download PDF daftar santri per kelompok
+app.get('/api/download/pdf/group/:id', authenticateToken, async (req, res) => {
+  const { id } = req.params;
+  try {
+    // 1. Ambil info kelompok
+    const groupResult = await db.query('SELECT * FROM groups WHERE id = $1', [id]);
+    if (groupResult.rows.length === 0) {
+      return res.status(404).json({ message: 'Kelompok tidak ditemukan' });
+    }
+    const group = groupResult.rows[0];
+
+    // 2. Ambil daftar calon santri di kelompok tersebut
+    const examineesResult = await db.query(`
+      SELECT e.registration_number, e.name, e.gender, e.school, er.grade as placement, u.username as examiner_name
+      FROM examinees e
+      LEFT JOIN exam_results er ON e.id = er.examinee_id
+      LEFT JOIN users u ON er.examiner_id = u.id
+      WHERE e.group_id = $1
+      ORDER BY e.name ASC
+    `, [id]);
+    const examinees = examineesResult.rows;
+
+    // 3. Set header HTTP
+    const filename = `Daftar_Santri_${group.group_name.replace(/\s+/g, '_')}.pdf`;
+    res.setHeader('Content-Type', 'application/pdf');
+    res.setHeader('Content-Disposition', `attachment; filename="${filename}"`);
+
+    // 4. Buat dokumen PDF
+    const doc = new PDFDocument({ margin: 40, size: 'A4' });
+    doc.pipe(res);
+
+    // KOP Surat / Header Indah
+    doc.fontSize(16).font('Helvetica-Bold').text('PANITIA UJIAN TES MASUK PONDOK PESANTREN', { align: 'center' });
+    doc.fontSize(12).text('AL-HAMID CINTA MULYA', { align: 'center' });
+    doc.moveDown(0.2);
+    doc.fontSize(9).font('Helvetica-Oblique').text('Alamat: Cinta Mulya, Kec. Candipuro, Kabupaten Lampung Selatan', { align: 'center' });
+    doc.moveDown(0.5);
+    
+    // Line separator ganda
+    doc.moveTo(40, doc.y).lineTo(555, doc.y).stroke();
+    doc.moveDown(0.1);
+    doc.moveTo(40, doc.y).lineTo(555, doc.y).stroke();
+    doc.moveDown(1.5);
+
+    // Informasi Kelompok
+    doc.fontSize(12).font('Helvetica-Bold').text(`LAPORAN KELOMPOK: ${group.group_name.toUpperCase()}`);
+    doc.moveDown(0.4);
+    doc.fontSize(10).font('Helvetica').text(`Kategori Gender: ${group.group_gender === 'PUTRA' ? 'PUTRA (Laki-laki)' : 'PUTRI (Perempuan)'}`);
+    doc.text(`Keterangan: ${group.description || '-'}`);
+    doc.moveDown(1.5);
+
+    // Tabel Header
+    doc.fontSize(10).font('Helvetica-Bold');
+    const tableY = doc.y;
+    
+    // Background header tabel
+    doc.rect(40, tableY - 5, 515, 20).fill('#e0e0e0');
+    doc.fillColor('black');
+
+    doc.text('No', 45, tableY);
+    doc.text('No. Daftar', 75, tableY);
+    doc.text('Nama Lengkap', 175, tableY);
+    doc.text('Jenjang', 345, tableY);
+    doc.text('Hasil Penempatan', 405, tableY);
+    doc.text('Penguji', 495, tableY);
+
+    // Bottom border of table header
+    doc.moveTo(40, tableY + 15).lineTo(555, tableY + 15).stroke();
+    doc.moveDown(1.2);
+
+    // Render list examinees
+    doc.fontSize(9).font('Helvetica');
+    let currentY = tableY + 20;
+
+    examinees.forEach((e, idx) => {
+      // Cek limit halaman (A4 height is 842, margin bottom is 40)
+      if (currentY > 780) {
+        doc.addPage();
+        currentY = 50; // reset Y
+        
+        doc.rect(40, currentY - 5, 515, 20).fill('#e0e0e0');
+        doc.fillColor('black');
+        doc.fontSize(10).font('Helvetica-Bold');
+        doc.text('No', 45, currentY);
+        doc.text('No. Daftar', 75, currentY);
+        doc.text('Nama Lengkap', 175, currentY);
+        doc.text('Jenjang', 345, currentY);
+        doc.text('Hasil Penempatan', 405, currentY);
+        doc.text('Penguji', 495, currentY);
+        doc.moveTo(40, currentY + 15).lineTo(555, currentY + 15).stroke();
+        doc.fontSize(9).font('Helvetica');
+        currentY += 20;
+      }
+
+      // Horizontal divider tipis
+      doc.moveTo(40, currentY + 12).lineTo(555, currentY + 12).strokeColor('#f0f0f0').stroke();
+      doc.strokeColor('black'); // kembalikan warna stroke ke hitam
+
+      doc.text(String(idx + 1), 45, currentY);
+      doc.text(e.registration_number, 75, currentY);
+      const displayName = e.name.length > 25 ? e.name.substring(0, 25) + '...' : e.name;
+      doc.text(displayName, 175, currentY);
+      doc.text(e.school, 345, currentY);
+      doc.text(e.placement || 'Belum Dinilai', 405, currentY);
+      doc.text(e.examiner_name || '-', 495, currentY);
+
+      currentY += 18;
+    });
+
+    doc.end();
+  } catch (err) {
+    console.error(err);
+    res.status(500).json({ message: 'Gagal membuat file PDF' });
+  }
 });
+
+// GET /api/download/pdf/examiners - Download PDF akun login penguji (Putra/Putri dipisah)
+app.get('/api/download/pdf/examiners', authenticateToken, requireRole('SUPER_USER'), async (req, res) => {
+  try {
+    // 1. Ambil data penguji beserta kelompoknya
+    const result = await db.query(`
+      SELECT u.username, u.plain_password, g.group_name, g.group_gender
+      FROM users u
+      LEFT JOIN groups g ON u.group_id = g.id
+      WHERE u.role = 'EXAMINER'
+      ORDER BY g.group_gender DESC, g.group_name ASC, u.username ASC
+    `);
+    const users = result.rows;
+
+    // Pisah kelompok Putra dan Putri
+    const putraUsers = users.filter(u => u.group_gender === 'PUTRA' || !u.group_gender);
+    const putriUsers = users.filter(u => u.group_gender === 'PUTRI');
+
+    res.setHeader('Content-Type', 'application/pdf');
+    res.setHeader('Content-Disposition', 'attachment; filename="Info_Login_Penguji.pdf"');
+
+    const doc = new PDFDocument({ margin: 40, size: 'A4' });
+    doc.pipe(res);
+
+    // KOP Surat
+    doc.fontSize(16).font('Helvetica-Bold').text('PANITIA UJIAN TES MASUK PONDOK PESANTREN', { align: 'center' });
+    doc.fontSize(12).text('AL-HAMID CINTA MULYA', { align: 'center' });
+    doc.moveDown(0.2);
+    doc.fontSize(9).font('Helvetica-Oblique').text('Alamat: Cinta Mulya, Kec. Candipuro, Kabupaten Lampung Selatan', { align: 'center' });
+    doc.moveDown(0.5);
+    doc.moveTo(40, doc.y).lineTo(555, doc.y).stroke();
+    doc.moveDown(0.1);
+    doc.moveTo(40, doc.y).lineTo(555, doc.y).stroke();
+    doc.moveDown(1.5);
+
+    // Judul
+    doc.fontSize(12).font('Helvetica-Bold').text('DAFTAR AKUN LOGIN PENGUJI (EXAMINER)', { align: 'center' });
+    doc.moveDown(1.5);
+
+    const renderSection = (title, userList) => {
+      doc.fontSize(11).font('Helvetica-Bold').text(title);
+      doc.moveDown(0.5);
+
+      const tableY = doc.y;
+      doc.rect(40, tableY - 5, 515, 20).fill('#e8e8e8');
+      doc.fillColor('black');
+
+      doc.fontSize(10).font('Helvetica-Bold');
+      doc.text('No', 45, tableY);
+      doc.text('Username', 80, tableY);
+      doc.text('Password', 210, tableY);
+      doc.text('Kelompok Tugas', 340, tableY);
+
+      doc.moveTo(40, tableY + 15).lineTo(555, tableY + 15).stroke();
+      doc.moveDown(1.2);
+
+      doc.fontSize(9).font('Helvetica');
+      let currentY = tableY + 20;
+
+      if (userList.length === 0) {
+        doc.text('Tidak ada data penguji.', 45, currentY);
+        currentY += 20;
+      } else {
+        userList.forEach((u, idx) => {
+          if (currentY > 780) {
+            doc.addPage();
+            currentY = 50;
+            
+            doc.rect(40, currentY - 5, 515, 20).fill('#e8e8e8');
+            doc.fillColor('black');
+            doc.fontSize(10).font('Helvetica-Bold');
+            doc.text('No', 45, currentY);
+            doc.text('Username', 80, currentY);
+            doc.text('Password', 210, currentY);
+            doc.text('Kelompok Tugas', 340, currentY);
+            doc.moveTo(40, currentY + 15).lineTo(555, currentY + 15).stroke();
+            doc.fontSize(9).font('Helvetica');
+            currentY += 20;
+          }
+
+          doc.moveTo(40, currentY + 12).lineTo(555, currentY + 12).strokeColor('#f0f0f0').stroke();
+          doc.strokeColor('black');
+
+          doc.text(String(idx + 1), 45, currentY);
+          doc.text(u.username, 80, currentY);
+          doc.text(u.plain_password || '(Tidak Tersedia/Hashed)', 210, currentY);
+          doc.text(u.group_name || 'Tanpa Kelompok', 340, currentY);
+
+          currentY += 18;
+        });
+      }
+      
+      doc.y = currentY + 10;
+      doc.moveDown(1.5);
+    };
+
+    // Render Kategori Putra
+    renderSection('KATEGORI PENGUJI PUTRA', putraUsers);
+    
+    // Render Kategori Putri
+    renderSection('KATEGORI PENGUJI PUTRI', putriUsers);
+
+    doc.end();
+  } catch (err) {
+    console.error(err);
+    res.status(500).json({ message: 'Gagal membuat file PDF' });
+  }
+});
+
+// GET /api/download/excel/placements - Rekapitulasi hasil penempatan kelas dalam bentuk Excel (XLSX)
+app.get('/api/download/excel/placements', authenticateToken, async (req, res) => {
+  try {
+    const result = await db.query(`
+      SELECT e.registration_number, e.name, e.gender, e.school, g.group_name,
+             er.grade as placement, er.checked_at, u.username as examiner_name
+      FROM examinees e
+      LEFT JOIN groups g ON e.group_id = g.id
+      LEFT JOIN exam_results er ON e.id = er.examinee_id
+      LEFT JOIN users u ON er.examiner_id = u.id
+      ORDER BY g.group_name ASC, e.name ASC
+    `);
+    const examinees = result.rows;
+
+    const wb = XLSX.utils.book_new();
+
+    const data = [
+      ['REKAPITULASI HASIL PENEMPATAN KELAS SANTRI'],
+      ['PONDOK PESANTREN AL-HAMID CINTA MULYA'],
+      ['Tanggal Unduh: ' + new Date().toLocaleString('id-ID')],
+      [],
+      ['No', 'No. Pendaftaran', 'Nama Lengkap', 'Jenis Kelamin', 'Jenjang', 'Kelompok', 'Hasil Penempatan', 'Penguji', 'Tanggal Ceklis']
+    ];
+
+    examinees.forEach((e, idx) => {
+      data.push([
+        idx + 1,
+        e.registration_number,
+        e.name,
+        e.gender,
+        e.school,
+        e.group_name || '-',
+        e.placement || 'Belum Dinilai',
+        e.examiner_name || '-',
+        e.checked_at ? new Date(e.checked_at).toLocaleString('id-ID') : '-'
+      ]);
+    });
+
+    const ws = XLSX.utils.aoa_to_sheet(data);
+
+    ws['!cols'] = [
+      { wch: 5 },  // No
+      { wch: 18 }, // No. Pendaftaran
+      { wch: 25 }, // Nama Lengkap
+      { wch: 15 }, // Jenis Kelamin
+      { wch: 10 }, // Jenjang
+      { wch: 18 }, // Kelompok
+      { wch: 18 }, // Hasil Penempatan
+      { wch: 18 }, // Penguji
+      { wch: 22 }  // Tanggal Ceklis
+    ];
+
+    XLSX.utils.book_append_sheet(wb, ws, 'Hasil Penempatan');
+
+    const buf = XLSX.write(wb, { type: 'buffer', bookType: 'xlsx' });
+
+    res.setHeader('Content-Type', 'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet');
+    res.setHeader('Content-Disposition', 'attachment; filename="Hasil_Penempatan_Santri.xlsx"');
+    res.send(buf);
+  } catch (err) {
+    console.error(err);
+    res.status(500).json({ message: 'Gagal membuat file Excel' });
+  }
+});
+
+
+// Jalankan Server
+const startServer = async () => {
+  try {
+    // Migration: plain_password
+    await db.query('ALTER TABLE users ADD COLUMN IF NOT EXISTS plain_password VARCHAR(255)');
+    console.log('Database migration: plain_password column verified/added successfully.');
+    
+    // Cleanup: delete orphaned examinees from previously deleted groups
+    const deleteRes = await db.query('DELETE FROM examinees WHERE group_id IS NULL');
+    if (deleteRes.rowCount > 0) {
+      console.log(`Database cleanup: deleted ${deleteRes.rowCount} orphaned examinees with NULL group_id.`);
+    }
+
+    // Migration: alter foreign key constraint to ON DELETE CASCADE
+    try {
+      // 1. Drop existing fkey if it exists
+      await db.query('ALTER TABLE examinees DROP CONSTRAINT IF EXISTS examinees_group_id_fkey');
+      // 2. Add ON DELETE CASCADE constraint
+      await db.query('ALTER TABLE examinees ADD CONSTRAINT examinees_group_id_fkey FOREIGN KEY (group_id) REFERENCES groups(id) ON DELETE CASCADE');
+      console.log('Database migration: examinees_group_id_fkey updated to ON DELETE CASCADE successfully.');
+    } catch (fkErr) {
+      console.error('Database migration error (foreign key):', fkErr);
+    }
+  } catch (err) {
+    console.error('Database migration error:', err);
+  }
+
+  app.listen(PORT, () => {
+    console.log(`Server Express berjalan di port ${PORT}`);
+  });
+};
+
+startServer();
+

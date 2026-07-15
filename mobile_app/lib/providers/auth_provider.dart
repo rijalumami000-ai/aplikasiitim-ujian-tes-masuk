@@ -1,4 +1,5 @@
 import 'package:flutter/material.dart';
+import 'package:shared_preferences/shared_preferences.dart';
 import '../services/api_service.dart';
 
 class AuthProvider extends ChangeNotifier {
@@ -7,14 +8,42 @@ class AuthProvider extends ChangeNotifier {
   bool _isLoading = false;
   String? _error;
   Map<String, dynamic>? _user;
+  ThemeMode _themeMode = ThemeMode.dark; // Default tema gelap premium
 
-  AuthProvider(this.apiService);
+  AuthProvider(this.apiService) {
+    loadThemePreference();
+  }
 
   bool get isLoading => _isLoading;
   String? get error => _error;
   Map<String, dynamic>? get user => _user;
   bool get isAuthenticated => _user != null;
   bool get isSuperUser => _user != null && _user!['role'] == 'SUPER_USER';
+  ThemeMode get themeMode => _themeMode;
+
+  // Memuat preferensi tema dari SharedPreferences
+  Future<void> loadThemePreference() async {
+    try {
+      final prefs = await SharedPreferences.getInstance();
+      final isLight = prefs.getBool('theme_is_light') ?? false;
+      _themeMode = isLight ? ThemeMode.light : ThemeMode.dark;
+      notifyListeners();
+    } catch (e) {
+      debugPrint('Gagal memuat preferensi tema: $e');
+    }
+  }
+
+  // Mengubah/men-toggle tema aktif
+  Future<void> toggleTheme() async {
+    try {
+      _themeMode = _themeMode == ThemeMode.dark ? ThemeMode.light : ThemeMode.dark;
+      notifyListeners();
+      final prefs = await SharedPreferences.getInstance();
+      await prefs.setBool('theme_is_light', _themeMode == ThemeMode.light);
+    } catch (e) {
+      debugPrint('Gagal menyimpan preferensi tema: $e');
+    }
+  }
 
   // Periksa apakah penguji memiliki izin ke kelompok tertentu
   bool hasGroupPermission(int groupId) {

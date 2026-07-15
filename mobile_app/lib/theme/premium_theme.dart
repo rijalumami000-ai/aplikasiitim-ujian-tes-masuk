@@ -19,10 +19,16 @@ class PremiumColors {
   static const Color spColor = Color(0xFF8B5CF6);    // Purple
   static const Color borderHighlight = Color(0xFF10B981);
 
-  // Greys and Texts
-  static const Color textMain = Colors.white;
-  static const Color textMuted = Color(0xFF94A3B8);
-  static const Color textMutedLight = Color(0xFF64748B);
+  // Dynamic getters based on BuildContext for light/dark support
+  static Color textMain(BuildContext context) {
+    return Theme.of(context).brightness == Brightness.light ? const Color(0xFF0F172A) : Colors.white;
+  }
+  static Color textMuted(BuildContext context) {
+    return Theme.of(context).brightness == Brightness.light ? const Color(0xFF475569) : const Color(0xFF94A3B8);
+  }
+  static Color textMutedLight(BuildContext context) {
+    return Theme.of(context).brightness == Brightness.light ? const Color(0xFF64748B) : const Color(0xFF64748B);
+  }
 }
 
 class PremiumTheme {
@@ -38,36 +44,83 @@ class PremiumTheme {
         background: PremiumColors.bgDark,
         surface: PremiumColors.bgDarkSecondary,
       ),
-      fontFamily: 'Outfit', // We'll map standard fallback sans-serif if Outfit is not found
+      fontFamily: 'Outfit',
       textTheme: const TextTheme(
-        headlineLarge: TextStyle(fontSize: 28, fontWeight: FontWeight.bold, color: PremiumColors.textMain),
-        headlineMedium: TextStyle(fontSize: 22, fontWeight: FontWeight.w600, color: PremiumColors.textMain),
-        titleLarge: TextStyle(fontSize: 18, fontWeight: FontWeight.w600, color: PremiumColors.textMain),
-        bodyLarge: TextStyle(fontSize: 16, color: PremiumColors.textMain),
-        bodyMedium: TextStyle(fontSize: 14, color: PremiumColors.textMuted),
-        labelLarge: TextStyle(fontSize: 14, fontWeight: FontWeight.bold, color: PremiumColors.textMain),
+        headlineLarge: TextStyle(fontSize: 28, fontWeight: FontWeight.bold, color: Colors.white),
+        headlineMedium: TextStyle(fontSize: 22, fontWeight: FontWeight.w600, color: Colors.white),
+        titleLarge: TextStyle(fontSize: 18, fontWeight: FontWeight.w600, color: Colors.white),
+        bodyLarge: TextStyle(fontSize: 16, color: Colors.white),
+        bodyMedium: TextStyle(fontSize: 14, color: Color(0xFF94A3B8)),
+        labelLarge: TextStyle(fontSize: 14, fontWeight: FontWeight.bold, color: Colors.white),
       ),
       inputDecorationTheme: InputDecorationTheme(
         filled: true,
         fillColor: PremiumColors.bgDarkSecondary,
-        labelStyle: const TextStyle(color: PremiumColors.textMuted),
-        hintStyle: const TextStyle(color: PremiumColors.textMutedLight),
+        labelStyle: const TextStyle(color: Color(0xFF94A3B8)),
+        hintStyle: const TextStyle(color: Color(0xFF64748B)),
         contentPadding: const EdgeInsets.symmetric(horizontal: 16, vertical: 16),
         border: OutlineInputBorder(
-          borderRadius: BorderRadius.circular(16),
           borderSide: const BorderSide(color: PremiumColors.cardBorder, width: 1),
+          borderRadius: BorderRadius.circular(16),
         ),
         enabledBorder: OutlineInputBorder(
-          borderRadius: BorderRadius.circular(16),
           borderSide: const BorderSide(color: PremiumColors.cardBorder, width: 1),
+          borderRadius: BorderRadius.circular(16),
         ),
         focusedBorder: OutlineInputBorder(
-          borderRadius: BorderRadius.circular(16),
           borderSide: const BorderSide(color: PremiumColors.primaryLight, width: 1.5),
+          borderRadius: BorderRadius.circular(16),
         ),
         errorBorder: OutlineInputBorder(
-          borderRadius: BorderRadius.circular(16),
           borderSide: const BorderSide(color: Colors.redAccent, width: 1),
+          borderRadius: BorderRadius.circular(16),
+        ),
+      ),
+    );
+  }
+
+  static ThemeData get lightTheme {
+    return ThemeData(
+      brightness: Brightness.light,
+      primaryColor: PremiumColors.primary,
+      scaffoldBackgroundColor: const Color(0xFFF1F5F9),
+      cardColor: Colors.white,
+      colorScheme: const ColorScheme.light(
+        primary: PremiumColors.primary,
+        secondary: PremiumColors.accent,
+        background: Color(0xFFF1F5F9),
+        surface: Colors.white,
+      ),
+      fontFamily: 'Outfit',
+      textTheme: const TextTheme(
+        headlineLarge: TextStyle(fontSize: 28, fontWeight: FontWeight.bold, color: Color(0xFF0F172A)),
+        headlineMedium: TextStyle(fontSize: 22, fontWeight: FontWeight.w600, color: Color(0xFF0F172A)),
+        titleLarge: TextStyle(fontSize: 18, fontWeight: FontWeight.w600, color: Color(0xFF0F172A)),
+        bodyLarge: TextStyle(fontSize: 16, color: Color(0xFF0F172A)),
+        bodyMedium: TextStyle(fontSize: 14, color: Color(0xFF475569)),
+        labelLarge: TextStyle(fontSize: 14, fontWeight: FontWeight.bold, color: Color(0xFF0F172A)),
+      ),
+      inputDecorationTheme: InputDecorationTheme(
+        filled: true,
+        fillColor: Colors.white,
+        labelStyle: const TextStyle(color: Color(0xFF475569)),
+        hintStyle: const TextStyle(color: Color(0xFF94A3B8)),
+        contentPadding: const EdgeInsets.symmetric(horizontal: 16, vertical: 16),
+        border: OutlineInputBorder(
+          borderSide: const BorderSide(color: Color(0xFFE2E8F0), width: 1),
+          borderRadius: BorderRadius.circular(16),
+        ),
+        enabledBorder: OutlineInputBorder(
+          borderSide: const BorderSide(color: Color(0xFFE2E8F0), width: 1),
+          borderRadius: BorderRadius.circular(16),
+        ),
+        focusedBorder: OutlineInputBorder(
+          borderSide: const BorderSide(color: PremiumColors.primaryLight, width: 1.5),
+          borderRadius: BorderRadius.circular(16),
+        ),
+        errorBorder: OutlineInputBorder(
+          borderSide: const BorderSide(color: Colors.redAccent, width: 1),
+          borderRadius: BorderRadius.circular(16),
         ),
       ),
     );
@@ -82,11 +135,13 @@ class PremiumBackground extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
+    final isLight = Theme.of(context).brightness == Brightness.light;
+
     return Stack(
       children: [
         // Background base
         Container(
-          color: PremiumColors.bgDark,
+          color: isLight ? const Color(0xFFF1F5F9) : PremiumColors.bgDark,
         ),
         // Glow effect 1: Pojok kanan atas (Emerald)
         Positioned(
@@ -97,7 +152,7 @@ class PremiumBackground extends StatelessWidget {
             height: 400,
             decoration: BoxDecoration(
               shape: BoxShape.circle,
-              color: PremiumColors.primary.withOpacity(0.2),
+              color: PremiumColors.primary.withOpacity(isLight ? 0.08 : 0.2),
             ),
           ),
         ),
@@ -110,19 +165,19 @@ class PremiumBackground extends StatelessWidget {
             height: 400,
             decoration: BoxDecoration(
               shape: BoxShape.circle,
-              color: const Color(0xFF6366F1).withOpacity(0.08),
+              color: const Color(0xFF6366F1).withOpacity(isLight ? 0.04 : 0.08),
             ),
           ),
         ),
         // Gradient overlay
         Container(
-          decoration: const BoxDecoration(
+          decoration: BoxDecoration(
             gradient: LinearGradient(
               begin: Alignment.topLeft,
               end: Alignment.bottomRight,
               colors: [
                 Colors.transparent,
-                Colors.black45,
+                isLight ? Colors.white24 : Colors.black45,
               ],
             ),
           ),
@@ -154,20 +209,22 @@ class GlassCard extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
+    final isLight = Theme.of(context).brightness == Brightness.light;
+
     Widget card = Container(
       width: width,
       height: height,
       padding: padding ?? const EdgeInsets.all(20),
       decoration: BoxDecoration(
-        color: PremiumColors.cardBg,
+        color: isLight ? Colors.white.withOpacity(0.85) : PremiumColors.cardBg,
         borderRadius: BorderRadius.circular(24),
         border: Border.all(
-          color: borderColor ?? PremiumColors.cardBorder,
+          color: borderColor ?? (isLight ? const Color(0xFFE2E8F0) : PremiumColors.cardBorder),
           width: 1,
         ),
         boxShadow: [
           BoxShadow(
-            color: Colors.black.withOpacity(0.2),
+            color: Colors.black.withOpacity(isLight ? 0.05 : 0.2),
             blurRadius: 20,
             offset: const Offset(0, 10),
           )

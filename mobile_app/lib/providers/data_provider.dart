@@ -1,7 +1,8 @@
+import 'dart:async';
 import 'package:flutter/material.dart';
 import '../services/api_service.dart';
 
-class DataProvider extends ChangeNotifier {
+class DataProvider extends ChangeNotifier with WidgetsBindingObserver {
   final ApiService apiService;
 
   List<dynamic> _groups = [];
@@ -11,11 +12,74 @@ class DataProvider extends ChangeNotifier {
 
   bool _isLoading = false;
   String? _error;
+  bool _isSuperUser = false;
+  Timer? _syncTimer;
 
   // Menyimpan status sinkronisasi per-santri
   final Map<int, bool> _syncingExaminees = {};
 
-  DataProvider(this.apiService);
+  DataProvider(this.apiService) {
+    WidgetsBinding.instance.addObserver(this);
+  }
+
+  @override
+  void dispose() {
+    WidgetsBinding.instance.removeObserver(this);
+    _syncTimer?.cancel();
+    super.dispose();
+  }
+
+  @override
+  void didChangeAppLifecycleState(AppLifecycleState state) {
+    if (state == AppLifecycleState.resumed) {
+      debugPrint('Aplikasi dilanjutkan (resumed): menyegarkan data otomatis...');
+      if (_syncTimer != null) {
+        pollAllData(_isSuperUser);
+      }
+    }
+  }
+
+  // Mulai timer sinkronisasi otomatis
+  void startSyncTimer(bool isSuperUser) {
+    _isSuperUser = isSuperUser;
+    if (_syncTimer == null) {
+      debugPrint('Memulai timer sinkronisasi otomatis (setiap 20 detik)...');
+      pollAllData(isSuperUser); // Polling instan saat pertama kali aktif
+      _syncTimer = Timer.periodic(const Duration(seconds: 20), (timer) {
+        pollAllData(isSuperUser);
+      });
+    }
+  }
+
+  // Hentikan timer sinkronisasi
+  void stopSyncTimer() {
+    _syncTimer?.cancel();
+    _syncTimer = null;
+  }
+
+  // Polling data di background secara senyap (tanpa menampilkan full screen loading spinner)
+  Future<void> pollAllData(bool isSuperUser) async {
+    try {
+      if (isSuperUser) {
+        final grps = await apiService.getGroups();
+        final usrs = await apiService.getUsers();
+        final exms = await apiService.getExaminees();
+        final rcp = await apiService.getRecap();
+        _groups = grps;
+        _users = usrs;
+        _examinees = exms;
+        _recap = rcp;
+      } else {
+        final grps = await apiService.getGroups();
+        final exms = await apiService.getExaminees();
+        _groups = grps;
+        _examinees = exms;
+      }
+      notifyListeners();
+    } catch (e) {
+      debugPrint('Kesalahan sinkronisasi senyap: $e');
+    }
+  }
 
   List<dynamic> get groups => _groups;
   List<dynamic> get users => _users;
@@ -28,6 +92,7 @@ class DataProvider extends ChangeNotifier {
 
   // Clear caches on logout
   void clear() {
+    stopSyncTimer();
     _groups = [];
     _users = [];
     _examinees = [];
@@ -148,6 +213,10 @@ class DataProvider extends ChangeNotifier {
     try {
       await apiService.deleteGroup(id);
       _groups.removeWhere((g) => g['id'] == id);
+      // Refresh examinees karena backend menghapus santri di kelompok ini
+      // sehingga nama-nama tersebut bisa muncul kembali di daftar calon santri PSB
+      await fetchExaminees();
+      await fetchRecap();
       notifyListeners();
       return true;
     } catch (e) {

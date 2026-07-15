@@ -1,5 +1,6 @@
 import 'package:flutter/material.dart';
 import 'package:provider/provider.dart';
+import '../services/pdf_generator.dart';
 import '../providers/auth_provider.dart';
 import '../providers/data_provider.dart';
 import '../theme/premium_theme.dart';
@@ -32,6 +33,45 @@ class _AdminDashboardState extends State<AdminDashboard> {
     Provider.of<DataProvider>(context, listen: false).fetchAllAdminData();
   }
 
+  Future<void> _downloadGroupPdf(DataProvider dataProvider, int groupId) async {
+    try {
+      final group = dataProvider.groups.firstWhere((g) => g['id'] == groupId);
+      final groupName = group['group_name'] ?? 'Kelompok';
+      final groupGender = group['group_gender'] ?? 'PUTRA';
+      final examinees = dataProvider.examinees
+          .where((e) => e['group_id'] == groupId)
+          .toList();
+
+      await PdfGenerator.generateAndPreviewGroupPdf(
+        groupName: groupName,
+        groupGender: groupGender,
+        examinees: examinees,
+      );
+    } catch (e) {
+      if (mounted) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          SnackBar(content: Text('Terjadi kesalahan saat membuat PDF: $e')),
+        );
+      }
+    }
+  }
+
+  Future<void> _downloadExaminersPdf(DataProvider dataProvider) async {
+    try {
+      await PdfGenerator.generateAndPreviewExaminersPdf(
+        users: dataProvider.users,
+        groups: dataProvider.groups,
+      );
+    } catch (e) {
+      if (mounted) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          SnackBar(content: Text('Terjadi kesalahan saat membuat PDF: $e')),
+        );
+      }
+    }
+  }
+
+
   Widget _buildSelectedTab(DataProvider dataProvider, int index) {
     switch (index) {
       case 0:
@@ -54,20 +94,28 @@ class _AdminDashboardState extends State<AdminDashboard> {
       appBar: AppBar(
         backgroundColor: Colors.transparent,
         elevation: 0,
-        title: const Column(
+        title: Column(
           crossAxisAlignment: CrossAxisAlignment.start,
           children: [
             Text(
               'Panel Kontrol Super User',
-              style: TextStyle(fontSize: 18, fontWeight: FontWeight.bold, color: PremiumColors.textMain),
+              style: TextStyle(fontSize: 18, fontWeight: FontWeight.bold, color: PremiumColors.textMain(context)),
             ),
-            Text(
+            const Text(
               'Kelola Kelompok, Penguji & Calon Santri',
               style: TextStyle(fontSize: 12, color: PremiumColors.primaryLight),
             ),
           ],
         ),
         actions: [
+          IconButton(
+            icon: Icon(
+              authProvider.themeMode == ThemeMode.dark ? Icons.light_mode_outlined : Icons.dark_mode_outlined,
+              color: PremiumColors.primaryLight,
+            ),
+            tooltip: 'Ganti Tema',
+            onPressed: () => authProvider.toggleTheme(),
+          ),
           IconButton(
             icon: const Icon(Icons.bar_chart, color: PremiumColors.primaryLight, size: 28),
             tooltip: 'Rekap Global',
@@ -87,7 +135,14 @@ class _AdminDashboardState extends State<AdminDashboard> {
       body: PremiumBackground(
         child: dataProvider.isLoading
             ? const Center(child: CircularProgressIndicator(color: PremiumColors.primaryLight))
-            : _buildSelectedTab(dataProvider, _selectedIndex),
+            : RefreshIndicator(
+                onRefresh: () async {
+                  await dataProvider.fetchAllAdminData();
+                },
+                color: PremiumColors.primaryLight,
+                backgroundColor: PremiumColors.bgDarkSecondary,
+                child: _buildSelectedTab(dataProvider, _selectedIndex),
+              ),
       ),
       bottomNavigationBar: Container(
         decoration: BoxDecoration(
@@ -104,7 +159,7 @@ class _AdminDashboardState extends State<AdminDashboard> {
           },
           backgroundColor: PremiumColors.bgDarkSecondary,
           selectedItemColor: PremiumColors.accent,
-          unselectedItemColor: PremiumColors.textMuted,
+          unselectedItemColor: PremiumColors.textMuted(context),
           selectedLabelStyle: const TextStyle(fontWeight: FontWeight.bold, fontSize: 11),
           unselectedLabelStyle: const TextStyle(fontSize: 11),
           type: BottomNavigationBarType.fixed,
@@ -144,7 +199,15 @@ class _AdminDashboardState extends State<AdminDashboard> {
         ),
         Expanded(
           child: dataProvider.groups.isEmpty
-              ? const Center(child: Text('Belum ada kelompok.', style: TextStyle(color: PremiumColors.textMuted)))
+              ? SingleChildScrollView(
+                  physics: const AlwaysScrollableScrollPhysics(),
+                  child: SizedBox(
+                    height: 300,
+                    child: Center(
+                      child: Text('Belum ada kelompok.', style: TextStyle(color: PremiumColors.textMuted(context))),
+                    ),
+                  ),
+                )
               : ListView.builder(
                   padding: const EdgeInsets.symmetric(horizontal: 16),
                   itemCount: dataProvider.groups.length,
@@ -186,7 +249,7 @@ class _AdminDashboardState extends State<AdminDashboard> {
                                 const SizedBox(height: 4),
                                 Text(
                                   group['description'] ?? 'Tanpa deskripsi',
-                                  style: const TextStyle(color: PremiumColors.textMuted, fontSize: 13),
+                                  style: TextStyle(color: PremiumColors.textMuted(context), fontSize: 13),
                                 ),
                               ],
                             ),
@@ -219,15 +282,40 @@ class _AdminDashboardState extends State<AdminDashboard> {
       children: [
         Padding(
           padding: const EdgeInsets.all(16.0),
-          child: PremiumButton(
-            label: 'Buat Akun Penguji Baru',
-            icon: Icons.person_add_alt,
-            onPressed: () => _showUserForm(context, dataProvider, null),
+          child: Row(
+            children: [
+              Expanded(
+                flex: 3,
+                child: PremiumButton(
+                  label: 'Buat Akun Penguji Baru',
+                  icon: Icons.person_add_alt,
+                  onPressed: () => _showUserForm(context, dataProvider, null),
+                ),
+              ),
+              const SizedBox(width: 12),
+              Expanded(
+                flex: 2,
+                child: PremiumButton(
+                  label: 'Cetak Info Login',
+                  icon: Icons.picture_as_pdf,
+                  color: Colors.redAccent.withOpacity(0.85),
+                  onPressed: () => _downloadExaminersPdf(dataProvider),
+                ),
+              ),
+            ],
           ),
         ),
         Expanded(
           child: dataProvider.users.isEmpty
-              ? const Center(child: Text('Belum ada pengguna.', style: TextStyle(color: PremiumColors.textMuted)))
+              ? SingleChildScrollView(
+                  physics: const AlwaysScrollableScrollPhysics(),
+                  child: SizedBox(
+                    height: 300,
+                    child: Center(
+                      child: Text('Belum ada pengguna.', style: TextStyle(color: PremiumColors.textMuted(context))),
+                    ),
+                  ),
+                )
               : ListView.builder(
                   padding: const EdgeInsets.symmetric(horizontal: 16),
                   itemCount: dataProvider.users.length,
@@ -275,13 +363,13 @@ class _AdminDashboardState extends State<AdminDashboard> {
                                 ),
                                 const SizedBox(height: 6),
                                 if (role == 'SUPER_USER')
-                                  const Text('Semua Kelompok (Super User)', style: TextStyle(color: PremiumColors.textMutedLight, fontSize: 12))
+                                  Text('Semua Kelompok (Super User)', style: TextStyle(color: PremiumColors.textMutedLight(context), fontSize: 12))
                                 else
                                   Text(
                                     assigned.isEmpty
                                         ? 'Kelompok: Belum ditentukan'
                                         : 'Kelompok: ${assigned.map((g) => g['name']).join(', ')}',
-                                    style: const TextStyle(color: PremiumColors.textMuted, fontSize: 12),
+                                    style: TextStyle(color: PremiumColors.textMuted(context), fontSize: 12),
                                   ),
                               ],
                             ),
@@ -311,12 +399,12 @@ class _AdminDashboardState extends State<AdminDashboard> {
   // --- TAB 3: SANTRI (EXAMINEES) ---
   Widget _buildExamineesTab(DataProvider dataProvider) {
     if (dataProvider.groups.isEmpty) {
-      return const Center(
+      return Center(
         child: Padding(
-          padding: EdgeInsets.all(24.0),
+          padding: const EdgeInsets.all(24.0),
           child: Text(
             'Harap tambahkan kelompok terlebih dahulu di tab Kelompok.',
-            style: TextStyle(color: PremiumColors.textMuted, fontSize: 14),
+            style: TextStyle(color: PremiumColors.textMuted(context), fontSize: 14),
             textAlign: TextAlign.center,
           ),
         ),
@@ -375,7 +463,7 @@ class _AdminDashboardState extends State<AdminDashboard> {
                   selectedColor: PremiumColors.accent,
                   backgroundColor: PremiumColors.bgDarkSecondary,
                   labelStyle: TextStyle(
-                    color: isSelected ? Colors.black : PremiumColors.textMain,
+                    color: isSelected ? Colors.black : PremiumColors.textMain(context),
                     fontWeight: FontWeight.bold,
                     fontSize: 12,
                   ),
@@ -409,7 +497,7 @@ class _AdminDashboardState extends State<AdminDashboard> {
                       const SizedBox(width: 8),
                       Text(
                         selectedGroupName,
-                        style: const TextStyle(fontWeight: FontWeight.bold, fontSize: 16, color: PremiumColors.textMain),
+                        style: TextStyle(fontWeight: FontWeight.bold, fontSize: 16, color: PremiumColors.textMain(context)),
                       ),
                       const SizedBox(width: 6),
                       Container(
@@ -441,22 +529,31 @@ class _AdminDashboardState extends State<AdminDashboard> {
                       ),
                     ],
                   ),
-                  TextButton.icon(
-                    onPressed: () => _showExamineeForm(context, dataProvider, null, autoGroupId: _selectedGroupId!),
-                    icon: const Icon(Icons.add, size: 16, color: PremiumColors.accent),
-                    label: const Text('Tambah Santri', style: TextStyle(color: PremiumColors.accent, fontSize: 12)),
+                  Row(
+                    children: [
+                      IconButton(
+                        icon: const Icon(Icons.picture_as_pdf, size: 18, color: Colors.redAccent),
+                        tooltip: 'Cetak PDF Kelompok',
+                        onPressed: () => _downloadGroupPdf(dataProvider, _selectedGroupId!),
+                      ),
+                      TextButton.icon(
+                        onPressed: () => _showExamineeForm(context, dataProvider, null, autoGroupId: _selectedGroupId!),
+                        icon: const Icon(Icons.add, size: 16, color: PremiumColors.accent),
+                        label: const Text('Tambah Santri', style: TextStyle(color: PremiumColors.accent, fontSize: 12)),
+                      ),
+                    ],
                   ),
                 ],
               ),
               const SizedBox(height: 12),
 
               if (groupStudents.isEmpty)
-                const Padding(
-                  padding: EdgeInsets.symmetric(vertical: 40),
+                Padding(
+                  padding: const EdgeInsets.symmetric(vertical: 40),
                   child: Center(
                     child: Text(
                       'Belum ada calon santri di kelompok ini.',
-                      style: TextStyle(color: PremiumColors.textMuted, fontSize: 13),
+                      style: TextStyle(color: PremiumColors.textMuted(context), fontSize: 13),
                     ),
                   ),
                 )
@@ -518,7 +615,7 @@ class _AdminDashboardState extends State<AdminDashboard> {
                                 const SizedBox(height: 4),
                                 Text(
                                   'No. Daftar: $regNum',
-                                  style: const TextStyle(color: PremiumColors.textMuted, fontSize: 11),
+                                  style: TextStyle(color: PremiumColors.textMuted(context), fontSize: 11),
                                 ),
                                 if (placement != null) ...[
                                   const SizedBox(height: 6),
@@ -612,7 +709,7 @@ class _AdminDashboardState extends State<AdminDashboard> {
               actions: [
                 TextButton(
                   onPressed: () => Navigator.pop(context),
-                  child: const Text('Batal', style: TextStyle(color: PremiumColors.textMuted)),
+                  child: Text('Batal', style: TextStyle(color: PremiumColors.textMuted(context))),
                 ),
                 ElevatedButton(
                   style: ElevatedButton.styleFrom(backgroundColor: PremiumColors.primary),
@@ -651,7 +748,7 @@ class _AdminDashboardState extends State<AdminDashboard> {
         actions: [
           TextButton(
             onPressed: () => Navigator.pop(context),
-            child: const Text('Batal', style: TextStyle(color: PremiumColors.textMuted)),
+            child: Text('Batal', style: TextStyle(color: PremiumColors.textMuted(context))),
           ),
           ElevatedButton(
             style: ElevatedButton.styleFrom(backgroundColor: Colors.redAccent),
@@ -745,7 +842,7 @@ class _AdminDashboardState extends State<AdminDashboard> {
               actions: [
                 TextButton(
                   onPressed: () => Navigator.pop(context),
-                  child: const Text('Batal', style: TextStyle(color: PremiumColors.textMuted)),
+                  child: Text('Batal', style: TextStyle(color: PremiumColors.textMuted(context))),
                 ),
                 ElevatedButton(
                   style: ElevatedButton.styleFrom(backgroundColor: PremiumColors.primary),
@@ -803,7 +900,7 @@ class _AdminDashboardState extends State<AdminDashboard> {
         actions: [
           TextButton(
             onPressed: () => Navigator.pop(context),
-            child: const Text('Batal', style: TextStyle(color: PremiumColors.textMuted)),
+            child: Text('Batal', style: TextStyle(color: PremiumColors.textMuted(context))),
           ),
           ElevatedButton(
             style: ElevatedButton.styleFrom(backgroundColor: Colors.redAccent),
@@ -916,11 +1013,11 @@ class _AdminDashboardState extends State<AdminDashboard> {
                             return Column(
                               mainAxisSize: MainAxisSize.min,
                               children: [
-                                const Icon(Icons.info_outline, color: PremiumColors.textMuted, size: 48),
+                                Icon(Icons.info_outline, color: PremiumColors.textMuted(context), size: 48),
                                 const SizedBox(height: 12),
                                 Text(
                                   'Tidak ditemukan calon santri ${groupGender == 'PUTRA' ? "Putra" : "Putri"} yang belum ditugaskan kelompok.',
-                                  style: const TextStyle(color: PremiumColors.textMuted, fontSize: 13),
+                                  style: TextStyle(color: PremiumColors.textMuted(context), fontSize: 13),
                                   textAlign: TextAlign.center,
                                 ),
                               ],
@@ -943,7 +1040,7 @@ class _AdminDashboardState extends State<AdminDashboard> {
                                     value: c,
                                     child: Text(
                                       "${c['name']} (${c['school']})",
-                                      style: const TextStyle(fontSize: 13, color: PremiumColors.textMain),
+                                      style: TextStyle(fontSize: 13, color: PremiumColors.textMain(context)),
                                       overflow: TextOverflow.ellipsis,
                                     ),
                                   );
@@ -963,7 +1060,7 @@ class _AdminDashboardState extends State<AdminDashboard> {
                                 const SizedBox(height: 8),
                                 Text('Nama: ${selectedCandidate['name']}', style: const TextStyle(fontSize: 13)),
                                 const SizedBox(height: 4),
-                                Text('No. Daftar: ${selectedCandidate['registration_number']}', style: const TextStyle(fontSize: 13, color: PremiumColors.textMuted)),
+                                Text('No. Daftar: ${selectedCandidate['registration_number']}', style: TextStyle(fontSize: 13, color: PremiumColors.textMuted(context))),
                                 const SizedBox(height: 4),
                                 Text('Jenis Kelamin: ${selectedCandidate['gender'] == 'PUTRA' ? "Laki-laki (Putra)" : "Perempuan (Putri)"}', style: const TextStyle(fontSize: 13)),
                                 const SizedBox(height: 4),
@@ -977,7 +1074,7 @@ class _AdminDashboardState extends State<AdminDashboard> {
               actions: [
                 TextButton(
                   onPressed: () => Navigator.pop(context),
-                  child: const Text('Batal', style: TextStyle(color: PremiumColors.textMuted)),
+                  child: Text('Batal', style: TextStyle(color: PremiumColors.textMuted(context))),
                 ),
                 if (isEdit || (selectedCandidate != null))
                   ElevatedButton(
@@ -1027,7 +1124,7 @@ class _AdminDashboardState extends State<AdminDashboard> {
         actions: [
           TextButton(
             onPressed: () => Navigator.pop(context),
-            child: const Text('Batal', style: TextStyle(color: PremiumColors.textMuted)),
+            child: Text('Batal', style: TextStyle(color: PremiumColors.textMuted(context))),
           ),
           ElevatedButton(
             style: ElevatedButton.styleFrom(backgroundColor: Colors.redAccent),
