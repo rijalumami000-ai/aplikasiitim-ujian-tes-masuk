@@ -16,7 +16,7 @@ app.use(express.json());
 
 // Hubungkan ke database psb_alhamid untuk sinkronisasi calon santri
 const psbDb = new Pool({
-  connectionString: 'postgresql://postgres:Rijalumami1002@127.0.0.1:5432/psb_alhamid'
+  connectionString: process.env.PSB_DATABASE_URL
 });
 
 // --- AUTENTIKASI ---
